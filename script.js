@@ -1,29 +1,38 @@
-// Podaci o proizvodima (ovo bi inače dolazilo iz baze)
+// Podaci
 const products = [
-    { name: "RTX 4090 Rog Strix", price: "3.800 KM", img: "https://images.unsplash.com/photo-1591488320449-011701bb6704" },
-    { name: "Ryzen 9 7950X", price: "1.100 KM", img: "https://images.unsplash.com/photo-1591488320449-011701bb6704" },
-    { name: "Samsung G9 Odyssey", price: "2.500 KM", img: "https://images.unsplash.com/photo-1527443224154-c4a3942d3acf" },
-    { name: "DDR5 RAM 32GB", price: "350 KM", img: "https://images.unsplash.com/photo-1562976540-1502c2145186" }
+    { name: "NVIDIA RTX 4070 Ti", price: "1.650 KM", img: "https://images.unsplash.com/photo-1591488320449-011701bb6704" },
+    { name: "Ryzen 7 7800X3D", price: "850 KM", img: "https://images.unsplash.com/photo-1591405351990-4726e331f141" },
+    { name: "Logitech G Pro X", price: "220 KM", img: "https://images.unsplash.com/photo-1527443224154-c4a3942d3acf" },
+    { name: "NZXT H9 Flow White", price: "320 KM", img: "https://images.unsplash.com/photo-1547082299-de196ea013d6" }
 ];
 
-const grid = document.getElementById('productGrid');
+// Modal Logika
+const modal = document.getElementById("filterModal");
+const btn = document.getElementById("openFilters");
+const span = document.getElementById("closeFilters");
 
-// Funkcija za prikaz artikala
-function displayProducts() {
-    products.forEach(p => {
-        const card = `
-            <div class="card">
-                <img src="${p.img}" alt="${p.name}">
-                <div class="card-content">
-                    <h4>${p.name}</h4>
-                    <p class="price">${p.price}</p>
-                    <button class="btn-filter" style="width: 100%; margin-top: 10px;">Pogledaj oglas</button>
-                </div>
-            </div>
-        `;
-        grid.innerHTML += card;
-    });
+btn.onclick = () => modal.style.display = "block";
+span.onclick = () => modal.style.display = "none";
+
+// Zatvori modal ako korisnik klikne bilo gdje van njega
+window.onclick = (event) => {
+    if (event.target == modal) modal.style.display = "none";
 }
 
-// Pokreni funkciju kad se stranica učita
-window.onload = displayProducts;
+// Renderanje proizvoda
+const grid = document.getElementById('productGrid');
+
+function render() {
+    grid.innerHTML = products.map(p => `
+        <div class="card">
+            <img src="${p.img}">
+            <div class="card-info">
+                <h4>${p.name}</h4>
+                <p class="price">${p.price}</p>
+                <button class="btn-action secondary full-width" style="margin-top:15px">Pogledaj</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+window.onload = render;
