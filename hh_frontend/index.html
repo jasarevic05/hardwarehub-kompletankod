@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="bs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HardwareHub | Marketplace</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <nav class="navbar">
+        <div class="logo">HARDWARE<span>HUB</span></div>
+        
+        <div class="search-wrapper">
+            <input type="text" placeholder="Pretraži komponente...">
+            <button id="openFilters" class="btn-filter-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg>
+                Filteri
+            </button>
+        </div>
+
+        <div class="nav-actions">
+            <button class="btn-action secondary">Prijava</button>
+            <button class="btn-action primary">Prodaj Artikal</button>
+        </div>
+    </nav>
+
+    <div id="filterModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Filtriraj pretragu</h2>
+                <span id="closeFilters" class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="filter-item">
+                    <label>Kategorija</label>
+                    <select>
+                        <option>Sve komponente</option>
+                        <option>Procesori (CPU)</option>
+                        <option>Grafičke kartice (GPU)</option>
+                        <option>Matične ploče</option>
+                    </select>
+                </div>
+                <div class="filter-item">
+                    <label>Cijena (KM)</label>
+                    <div class="range-inputs">
+                        <input type="number" placeholder="Min">
+                        <input type="number" placeholder="Max">
+                    </div>
+                </div>
+                <div class="filter-item">
+                    <label>Stanje</label>
+                    <div class="checkbox-group">
+                        <label><input type="checkbox"> Novo</label>
+                        <label><input type="checkbox"> Polovno</label>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-action primary full-width">Primijeni filtere</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <main class="feed">
+            <div class="product-grid" id="productGrid">
+                </div>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
