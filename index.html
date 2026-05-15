@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="bs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HardwareHub | Moderni Oglasnik</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <nav class="navbar">
+        <div class="logo">HARDWARE<span>HUB</span></div>
+        <div class="search-bar">
+            <input type="text" placeholder="Pretraži komponente...">
+        </div>
+        <div class="nav-actions">
+            <button class="btn-login">Prijava</button>
+            <button class="btn-sell">Prodaj Artikal</button>
+        </div>
+    </nav>
+
+    <div class="container">
+        <aside class="sidebar">
+            <h3>Filteri</h3>
+            <div class="filter-group">
+                <label>Kategorija</label>
+                <select>
+                    <option>Sve komponente</option>
+                    <option>Procesori</option>
+                    <option>Grafičke kartice</option>
+                    <option>RAM memorija</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>Cijena (KM)</label>
+                <div class="price-inputs">
+                    <input type="number" placeholder="Od">
+                    <input type="number" placeholder="Do">
+                </div>
+            </div>
+            <button class="btn-filter">Primijeni</button>
+        </aside>
+
+        <main class="feed">
+            <div class="feed-header">
+                <h2>Izdvojeni oglasi</h2>
+            </div>
+            <div class="product-grid" id="productGrid">
+                </div>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
