@@ -14,7 +14,7 @@
         <div class="logo">HARDWARE<span>HUB</span></div>
         
         <div class="search-wrapper">
-            <input type="text" placeholder="Pretraži komponente...">
+            <input type="text" id="searchInput" placeholder="Pretraži komponente, proizvođače...">
             <button id="openFilters" class="btn-filter-icon">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg>
                 Filteri
@@ -23,7 +23,7 @@
 
         <div class="nav-actions">
             <button id="openAuth" class="btn-action secondary">Prijava / Registracija</button>
-            <button class="btn-action primary">Prodaj Artikal</button>
+            <button id="openSell" class="btn-action primary">Prodaj Artikal</button>
         </div>
     </nav>
 
@@ -36,30 +36,111 @@
             <div class="modal-body">
                 <div class="filter-item">
                     <label>Kategorija</label>
-                    <select>
-                        <option>Sve komponente</option>
-                        <option>Procesori (CPU)</option>
-                        <option>Grafičke kartice (GPU)</option>
-                        <option>Matične ploče</option>
+                    <select id="filterCategory">
+                        <option value="Sve">Sve komponente</option>
+                        <option value="CPU">Procesori (CPU)</option>
+                        <option value="GPU">Grafičke kartice (GPU)</option>
+                        <option value="RAM">Radna memorija (RAM)</option>
+                        <option value="SSD/HDD">Skladištenje (SSD/HDD)</option>
+                        <option value="Matične ploče">Matične ploče</option>
+                        <option value="Periferija">Periferija (Miševi, tastature, monitori...)</option>
                     </select>
                 </div>
+                
+                <div class="filter-item">
+                    <label>Proizvođač</label>
+                    <select id="filterBrand">
+                        <option value="Sve">Svi proizvođači</option>
+                        <option value="NVIDIA">NVIDIA</option>
+                        <option value="AMD">AMD</option>
+                        <option value="Intel">Intel</option>
+                        <option value="Logitech">Logitech</option>
+                        <option value="Kingston">Kingston</option>
+                        <option value="Samsung">Samsung</option>
+                        <option value="ASUS">ASUS</option>
+                    </select>
+                </div>
+
                 <div class="filter-item">
                     <label>Cijena (KM)</label>
                     <div class="range-inputs">
-                        <input type="number" placeholder="Min" class="form-input">
-                        <input type="number" placeholder="Max" class="form-input">
+                        <input type="number" id="filterMinPrice" placeholder="Min" class="form-input">
+                        <input type="number" id="filterMaxPrice" placeholder="Max" class="form-input">
                     </div>
                 </div>
                 <div class="filter-item">
                     <label>Stanje</label>
                     <div class="checkbox-group">
-                        <label><input type="checkbox"> Novo</label>
-                        <label><input type="checkbox"> Polovno</label>
+                        <label><input type="checkbox" id="filterNew" value="Novo"> Novo</label>
+                        <label><input type="checkbox" id="filterUsed" value="Polovno"> Polovno</label>
                     </div>
                 </div>
             </div>
             <div class="modal-footer">
-                <button class="btn-action primary full-width">Primijeni filtere</button>
+                <button id="btnResetFilters" class="btn-action secondary">Resetuj</button>
+                <button id="btnApplyFilters" class="btn-action primary">Primijeni filtere</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="sellModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Objavi artikal za prodaju</h2>
+                <span id="closeSell" class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="sellForm">
+                    <div class="filter-item">
+                        <label>Naziv komponente</label>
+                        <input type="text" id="prodName" class="form-input" required placeholder="npr. Ryzen 5 5600X">
+                    </div>
+                    <div class="filter-item">
+                        <label>Proizvođač</label>
+                        <select id="prodBrand" required>
+                            <option value="AMD">AMD</option>
+                            <option value="NVIDIA">NVIDIA</option>
+                            <option value="Intel">Intel</option>
+                            <option value="Logitech">Logitech</option>
+                            <option value="Kingston">Kingston</option>
+                            <option value="Samsung">Samsung</option>
+                            <option value="ASUS">ASUS</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label>Kategorija</label>
+                        <select id="prodCategory" required>
+                            <option value="CPU">Procesori (CPU)</option>
+                            <option value="GPU">Grafičke kartice (GPU)</option>
+                            <option value="RAM">Radna memorija (RAM)</option>
+                            <option value="SSD/HDD">Skladištenje (SSD/HDD)</option>
+                            <option value="Matične ploče">Matične ploče</option>
+                            <option value="Periferija">Periferija (Miševi, tastature, monitori...)</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label>Cijena (KM)</label>
+                        <input type="number" id="prodPrice" class="form-input" required placeholder="npr. 350">
+                    </div>
+                    <div class="filter-item">
+                        <label>Stanje komponente</label>
+                        <div class="checkbox-group">
+                            <label><input type="radio" name="prodCondition" value="Novo" checked> Novo</label>
+                            <label><input type="radio" name="prodCondition" value="Polovno"> Polovno</label>
+                        </div>
+                    </div>
+                    <div class="filter-item">
+                        <label>Specifikacije / Opis</label>
+                        <textarea id="prodSpecs" class="form-input" rows="3" required placeholder="Unesite detaljne specifikacije..."></textarea>
+                    </div>
+                    <div class="filter-item">
+                        <label>Učitaj sliku sa računara</label>
+                        <input type="file" id="prodImgFile" class="form-input" accept="image/*" required>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="submit" class="btn-action primary full-width">Objavi oglas</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
