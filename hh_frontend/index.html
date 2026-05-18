@@ -6,6 +6,7 @@
     <title>HardwareHub | Marketplace</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
 </head>
 <body>
 
@@ -21,7 +22,7 @@
         </div>
 
         <div class="nav-actions">
-            <button class="btn-action secondary">Prijava</button>
+            <button id="openAuth" class="btn-action secondary">Prijava / Registracija</button>
             <button class="btn-action primary">Prodaj Artikal</button>
         </div>
     </nav>
@@ -45,8 +46,8 @@
                 <div class="filter-item">
                     <label>Cijena (KM)</label>
                     <div class="range-inputs">
-                        <input type="number" placeholder="Min">
-                        <input type="number" placeholder="Max">
+                        <input type="number" placeholder="Min" class="form-input">
+                        <input type="number" placeholder="Max" class="form-input">
                     </div>
                 </div>
                 <div class="filter-item">
@@ -59,6 +60,46 @@
             </div>
             <div class="modal-footer">
                 <button class="btn-action primary full-width">Primijeni filtere</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="authModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Registracija</h2>
+                <span id="closeAuth" class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="registerForm">
+                    <div class="filter-item">
+                        <label>Ime</label>
+                        <input type="text" id="regName" class="form-input" required placeholder="Unesite ime">
+                    </div>
+                    <div class="filter-item">
+                        <label>Prezime</label>
+                        <input type="text" id="regSurname" class="form-input" required placeholder="Unesite prezime">
+                    </div>
+                    <div class="filter-item">
+                        <label>Korisničko ime</label>
+                        <input type="text" id="regUsername" class="form-input" required placeholder="Unesite korisničko ime">
+                    </div>
+                    <div class="filter-item">
+                        <label>Datum rođenja</label>
+                        <input type="date" id="regDob" class="form-input" required>
+                    </div>
+                    <div class="filter-item">
+                        <label>Email adresa</label>
+                        <input type="email" id="regEmail" class="form-input" required placeholder="Unesite email">
+                    </div>
+                    <div class="filter-item">
+                        <label>Lozinka</label>
+                        <input type="password" id="regPassword" class="form-input" required placeholder="Unesite lozinku">
+                    </div>
+                    <div class="modal-footer">
+                        <button type="submit" class="btn-action primary full-width" id="btnRegister">Registruj se</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
