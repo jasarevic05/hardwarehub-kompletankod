@@ -22,6 +22,12 @@
         </div>
 
         <div class="nav-actions">
+            <button id="openAdminPanelBtn" class="btn-action primary" style="display: none; background: #10b981; margin-right: 10px;">Admin Panel</button>
+            
+            <span id="adminBadge" class="admin-badge" style="display: none;">Admin Mode</span>
+            <button id="logoutBtn" class="btn-action secondary" style="display: none;">Odjava</button>
+            
+            <button id="openReportBtn" class="btn-action secondary" style="margin-right: 10px;">Podrška</button>
             <button id="openAuth" class="btn-action secondary">Prijava / Registracija</button>
             <button id="openSell" class="btn-action primary">Prodaj Artikal</button>
         </div>
@@ -94,6 +100,10 @@
                     <div class="filter-item">
                         <label>Naziv komponente</label>
                         <input type="text" id="prodName" class="form-input" required placeholder="npr. Ryzen 5 5600X">
+                    </div>
+                    <div class="filter-item">
+                        <label>Vlasnik / Korisničko Ime</label>
+                        <input type="text" id="prodOwner" class="form-input" required placeholder="Unesite svoje korisničko ime">
                     </div>
                     <div class="filter-item">
                         <label>Proizvođač</label>
@@ -177,10 +187,110 @@
                         <label>Lozinka</label>
                         <input type="password" id="regPassword" class="form-input" required placeholder="Unesite lozinku">
                     </div>
-                    <div class="modal-footer">
+                    <div class="modal-footer" style="flex-direction: column; gap: 10px;">
                         <button type="submit" class="btn-action primary full-width" id="btnRegister">Registruj se</button>
+                        <p style="text-align: center; margin: 5px 0 0 0; font-size: 0.85rem; color: var(--text-dim);">
+                            Vi ste administrator? <a href="#" id="linkAdminLogin" style="color: var(--accent); text-decoration: none; font-weight: 600;">Prijavite se ovdje</a>
+                        </p>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+
+    <div id="adminModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Admin Prijava</h2>
+                <span id="closeAdmin" class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="adminLoginForm">
+                    <div class="filter-item">
+                        <label>Admin Korisničko ime</label>
+                        <input type="text" id="adminUser" class="form-input" required placeholder="Korisničko ime">
+                    </div>
+                    <div class="filter-item">
+                        <label>Admin Lozinka</label>
+                        <input type="password" id="adminPass" class="form-input" required placeholder="Lozinka">
+                    </div>
+                    <div class="modal-footer">
+                        <button type="submit" class="btn-action primary full-width">Prijavi se kao Admin</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div id="reportModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Centar za podršku korisnicima</h2>
+                <span id="closeReport" class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="reportForm">
+                    <div class="filter-item">
+                        <label>Vaše korisničko ime</label>
+                        <input type="text" id="repUser" class="form-input" required placeholder="Unesite username">
+                    </div>
+                    <div class="filter-item">
+                        <label>Naslov problema / kategorija</label>
+                        <select id="repSubject" class="form-input">
+                            <option value="Problem sa objavom">Problem sa objavom</option>
+                            <option value="Prijavljivanje prevare">Prijavljivanje prevare</option>
+                            <option value="Problem sa Coi-nima">Problem sa Coin-ima</option>
+                            <option value="Tehnička greška na sajtu">Tehnička greška na sajtu</option>
+                        </select>
+                    </div>
+                    <div class="filter-item">
+                        <label>Detaljan opis problema</label>
+                        <textarea id="repMessage" class="form-input" rows="4" required placeholder="Opišite administratoru detaljno šta se desilo..."></textarea>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="submit" class="btn-action primary full-width">Pošalji prijavu podršci</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div id="adminPanelModal" class="modal" style="width: 100%; height: 100%;">
+        <div class="modal-content" style="width: 85%; max-width: 1100px; margin: 2% auto;">
+            <div class="modal-header">
+                <h2><span style="color: #10b981;">HardwareHub</span> Kontrolna Tabla za Administratore</h2>
+                <span id="closeAdminPanel" class="close">&times;</span>
+            </div>
+            <div class="modal-body" style="display: grid; grid-template-columns: 1fr; gap: 30px;">
+                
+                <div class="admin-section">
+                    <h3>👥 Registrovani korisnici sistema i izmjena valute</h3>
+                    <div style="overflow-x: auto;">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>Ime i Prezime</th>
+                                    <th>Korisničko Ime</th>
+                                    <th>Email</th>
+                                    <th>Ukupno Objava</th>
+                                    <th>💰 Trenutno Coina</th>
+                                    <th>Akcije administratora</th>
+                                </tr>
+                            </thead>
+                            <tbody id="adminUsersTableBody">
+                                </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <hr style="border: 1px solid var(--border); width: 100%;">
+
+                <div class="admin-section">
+                    <h3>📩 Inbox za podršku i prijave korisnika (Reports)</h3>
+                    <div id="adminReportsContainer" class="reports-list">
+                        </div>
+                </div>
+
             </div>
         </div>
     </div>
