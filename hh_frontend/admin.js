@@ -6,7 +6,6 @@ const SUPABASE_URL = "https://gvwmkqqhpdklikkbciol.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2d21rcXFocGRrbGlra2JjaW9sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxODg2OTEsImV4cCI6MjA5NDc2NDY5MX0.X5URdWNvIez_jiuT4uyhBtTAi9Vcr2SDf9KyKE5YdE0";
 const supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 if (!supabaseClient) console.error("Supabase client could not be created. Check if the Supabase script loaded correctly.");
-
 const localProductKey = 'hardware_products';
 const localUserKey = 'hardware_users';
 const localReportKey = 'hardware_reports';
@@ -42,10 +41,10 @@ async function ensureOwnerAdminUsers() {
     if (!supabaseClient) return;
     const missing = [];
     if (!users.some(u => u.username === 'owner')) {
-        missing.push({ name: 'Glavni Vlasnik', username: 'owner', email: 'owner@hardwarehub.ba', hhcoins: 1000, coins: 1000, role: 'owner' });
+        missing.push({ name: 'Glavni Vlasnik', username: 'owner', email: 'owner@hardwarehub.ba', hhcoins: 1000, role: 'owner' });
     }
     if (!users.some(u => u.username === 'admin')) {
-        missing.push({ name: 'Administrator', username: 'admin', email: 'admin@hardwarehub.ba', hhcoins: 500, coins: 500, role: 'admin' });
+        missing.push({ name: 'Administrator', username: 'admin', email: 'admin@hardwarehub.ba', hhcoins: 500, role: 'admin' });
     }
     if (missing.length) {
         const { data, error } = await supabaseClient.from('users').upsert(missing, { onConflict: 'username' }).select();
@@ -54,7 +53,7 @@ async function ensureOwnerAdminUsers() {
         } else if (data) {
             data.forEach(user => {
                 if (!users.some(u => u.username === user.username)) {
-                    users.push({ ...user, hhcoins: user.hhcoins ?? user.coins ?? 0, coins: user.hhcoins ?? user.coins ?? 0, role: user.role || 'basic' });
+                    users.push({ ...user, hhcoins: user.hhcoins ?? user.coins ?? 0, role: user.role || 'basic' });
                 }
             });
         }
@@ -76,10 +75,10 @@ function createLog(action, detail) {
 function loadFallbackData() {
     if (!users.length) {
         users = [
-            { name: "Glavni Vlasnik", username: "owner", email: "owner@hardwarehub.ba", hhcoins: 1000, coins: 1000, role: 'owner' },
-            { name: "Administrator", username: "admin", email: "admin@hardwarehub.ba", hhcoins: 500, coins: 500, role: 'admin' },
-            { name: "Amar Softić", username: "pro_gamer", email: "amar@test.com", password: "123", hhcoins: 250, coins: 250, role: 'basic' },
-            { name: "Emina Spahić", username: "hardware_fan", email: "emina@test.com", password: "123", hhcoins: 120, coins: 120, role: 'basic' }
+            { name: "Glavni Vlasnik", username: "owner", email: "owner@hardwarehub.ba", hhcoins: 1000, role: 'owner' },
+            { name: "Administrator", username: "admin", email: "admin@hardwarehub.ba", hhcoins: 500, role: 'admin' },
+            { name: "Amar Softić", username: "pro_gamer", email: "amar@test.com", password: "123", hhcoins: 250, role: 'basic' },
+            { name: "Emina Spahić", username: "hardware_fan", email: "emina@test.com", password: "123", hhcoins: 120, role: 'basic' }
         ];
     }
     const ensureAdminUser = (user) => {
@@ -87,8 +86,8 @@ function loadFallbackData() {
             users.push(user);
         }
     };
-    ensureAdminUser({ name: "Glavni Vlasnik", username: "owner", email: "owner@hardwarehub.ba", hhcoins: 1000, coins: 1000, role: 'owner' });
-    ensureAdminUser({ name: "Administrator", username: "admin", email: "admin@hardwarehub.ba", hhcoins: 500, coins: 500, role: 'admin' });
+    ensureAdminUser({ name: "Glavni Vlasnik", username: "owner", email: "owner@hardwarehub.ba", hhcoins: 1000, role: 'owner' });
+    ensureAdminUser({ name: "Administrator", username: "admin", email: "admin@hardwarehub.ba", hhcoins: 500, role: 'admin' });
     if (!products.length) {
         products = [
             { id: 1, name: "NVIDIA RTX 4070 Ti", price: 1650, category: "GPU", brand: "NVIDIA", condition: "Novo", owner: "pro_gamer", specs: "12GB GDDR6X, vrhunska kartica za 1440p i 4K gaming.", images: ["https://images.unsplash.com/photo-1591488320449-011701bb6704"], views: 42, promote: "main" },
@@ -110,7 +109,6 @@ async function loadAdminData() {
             users = userData.map(user => ({
                 ...user,
                 hhcoins: user.hhcoins ?? user.coins ?? 0,
-                coins: user.hhcoins ?? user.coins ?? 0,
                 role: user.role || 'basic'
             }));
         }
@@ -213,13 +211,9 @@ async function openAdjustCoins(index) {
     const amount = prompt('Unesite broj HHCoins (+/-) za korisnika:');
     const parsed = parseInt(amount, 10);
     if (isNaN(parsed)) return;
-    
-    const noviSaldo = (users[index].hhcoins || 0) + parsed;
-    users[index].hhcoins = noviSaldo;
-    users[index].coins = noviSaldo;
-
+    users[index].hhcoins = (users[index].hhcoins || 0) + parsed;
     if (supabaseClient) {
-        const { error } = await supabaseClient.from('users').update({ hhcoins: noviSaldo, coins: noviSaldo }).eq('username', users[index].username);
+        const { error } = await supabaseClient.from('users').update({ hhcoins: users[index].hhcoins }).eq('username', users[index].username);
         if (error) console.warn('Greška pri ažuriranju HHCoins-a u Supabase:', error.message);
     }
     persistAdminState();
@@ -279,7 +273,23 @@ async function deleteUser(index) {
 }
 
 async function initAdminPage() {
+    const loginForm = document.getElementById('adminLoginForm');
+    const submitBtn = loginForm ? loginForm.querySelector('button[type="submit"]') : null;
+    
+    // Onemogući klikanje na login dugme dok podaci ne stignu iz Supabase
+    if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerText = "Učitavanje podataka...";
+    }
+
     await loadAdminData();
+
+    // Omogući formu ponovo kada su podaci spremni u nizovima
+    if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerText = "Prijavi se";
+    }
+
     const savedAdminUsername = sessionStorage.getItem(adminUsernameKey);
     if (savedAdminUsername) {
         currentAdmin = users.find(u => u.username === savedAdminUsername && ['admin', 'owner'].includes(u.role)) || null;
@@ -298,6 +308,7 @@ async function initAdminPage() {
         e.preventDefault();
         const username = document.getElementById('adminLoginUser').value.trim();
         const password = document.getElementById('adminLoginPass').value.trim();
+        
         const adminUser = users.find(u => u.username === username && ['admin', 'owner'].includes(u.role));
         if (!adminUser || adminPasswords[username] !== password) {
             alert('Pogrešno korisničko ime ili lozinka za admin panel.');
