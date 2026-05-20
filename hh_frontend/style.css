@@ -10,38 +10,43 @@
     --featured: #eab308;
 }
 
-/* Globalni stilovi */
 body {
     background-color: var(--bg);
     color: var(--text);
     font-family: 'Plus Jakarta Sans', sans-serif;
     margin: 0;
-    padding: 0;
 }
 
-/* Navbar raspoređen pomoću Grida na 3 jednaka bloka */
+/* Navbar */
 .navbar {
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
+    display: flex;
+    justify-content: space-between;
     align-items: center;
     padding: 1rem 5%;
     background: rgba(11, 15, 26, 0.8);
     backdrop-filter: blur(15px);
     border-bottom: 1px solid var(--border);
     position: sticky;
-    top: 0; 
-    z-index: 100;
+    top: 0; z-index: 100;
 }
 
-.logo { 
-    font-size: 1.5rem; 
-    font-weight: 800; 
-    letter-spacing: -1px; 
-    justify-self: start;
-}
+.logo { font-size: 1.5rem; font-weight: 800; letter-spacing: -1px; }
 .logo span { color: var(--accent); }
 
-/* Centrirani Search & Filter */
+.admin-badge {
+    background: rgba(239, 68, 68, 0.15);
+    color: var(--danger);
+    padding: 6px 12px;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 0.85rem;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    margin-right: 10px;
+}
+
+.nav-actions { display: flex; align-items: center; }
+
+/* Search & Filter Trigger */
 .search-wrapper {
     display: flex;
     gap: 10px;
@@ -49,16 +54,10 @@ body {
     padding: 5px 10px;
     border-radius: 16px;
     border: 1px solid var(--border);
-    width: 380px;
 }
 
 .search-wrapper input {
-    background: none; 
-    border: none; 
-    color: white; 
-    padding: 10px; 
-    width: 100%; 
-    outline: none;
+    background: none; border: none; color: white; padding: 10px; width: 300px; outline: none;
 }
 
 .btn-filter-icon {
@@ -72,24 +71,6 @@ body {
     align-items: center;
     gap: 8px;
     font-weight: 600;
-}
-
-/* Desne akcije poravnate na kraj desne strane */
-.nav-actions { 
-    display: flex; 
-    align-items: center; 
-    justify-self: end;
-}
-
-.admin-badge {
-    background: rgba(239, 68, 68, 0.15);
-    color: var(--danger);
-    padding: 6px 12px;
-    border-radius: 10px;
-    font-weight: 700;
-    font-size: 0.85rem;
-    border: 1px solid rgba(239, 68, 68, 0.3);
-    margin-right: 10px;
 }
 
 /* Gumbi */
@@ -182,7 +163,7 @@ body {
 .card p.specs { font-size: 0.85rem; color: #94a3b8; margin: 10px 0 15px 0; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .price { color: var(--accent); font-weight: 800; font-size: 1.2rem; margin: 0; }
 
-/* Admin panel stilovi */
+/* Admin stilovi */
 .admin-section h3 {
     margin-top: 0; margin-bottom: 15px; font-size: 1.3rem; border-left: 4px solid var(--accent); padding-left: 10px;
 }
@@ -197,15 +178,15 @@ body {
 
 /* Chat elementi */
 .chat-user-item {
-    padding: 10px; border-radius: 8px; color: var(--text-dim); cursor: pointer; font-weight: 600; font-size: 0.9rem; transition: 0.2s; margin-bottom: 5px;
+    padding: 10px; border-radius: 8px; color: var(--text-dim); cursor: pointer; font-weight: 600; font-size: 0.9rem; transition: 0.2s;
 }
 .chat-user-item:hover, .chat-user-item.active { background: rgba(59, 130, 246, 0.15); color: white; }
 
 .msg-bubble {
-    max-width: 70%; padding: 10px 14px; border-radius: 12px; font-size: 0.9rem; line-height: 1.4; word-wrap: break-word; margin-bottom: 5px;
+    max-width: 70%; padding: 10px 14px; border-radius: 12px; font-size: 0.9rem; line-height: 1.4; word-wrap: break-word;
 }
 .msg-bubble.sent { background: var(--accent); color: white; align-self: flex-end; border-bottom-right-radius: 2px; }
 .msg-bubble.received { background: var(--card); border: 1px solid var(--border); color: white; align-self: flex-start; border-bottom-left-radius: 2px; }
 
 #linkToRegister, #linkToLogin, #linkAdminLogin { cursor: pointer; transition: color 0.2s ease; }
-#linkToRegister:hover, #linkToLogin:hover, #linkAdminLogin:hover { filter: brightness(1.2); text-decoration: underline !important; }
+#linkToRegister:hover, #linkToLogin:hover { filter: brightness(1.2); text-decoration: underline !important; }
