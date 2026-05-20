@@ -1,18 +1,15 @@
-// --- 1. POČETNI PODACI (Baze) ---
-const defaultProducts = [
-    { id: 1, name: "NVIDIA RTX 4070 Ti", price: 1650, category: "GPU", brand: "NVIDIA", condition: "Novo", owner: "pro_gamer", specs: "12GB GDDR6X, vrhunska kartica za 1440p i 4K gaming. Kupljena nova, garancija 2 godine.", img: "https://images.unsplash.com/photo-1591488320449-011701bb6704", views: 42, promote: "main" },
-    { id: 2, name: "Ryzen 7 7800X3D", price: 850, category: "CPU", brand: "AMD", condition: "Novo", owner: "hardware_fan", specs: "8 jezgri, 16 threadova, najbolji procesor za gaming na svijetu trenutno. Fabričko pakovanje.", img: "https://images.unsplash.com/photo-1591405351990-4726e331f141", views: 19, promote: "none" }
-];
+// === 1. SUPABASE KONFIGURACIJA (ZAMIJENI SA TVOJIM PODACIMA) ===
+const SUPABASE_URL = "https://gvwmkqqhpdklikkbciol.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2d21rcXFocGRrbGlra2JjaW9sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxODg2OTEsImV4cCI6MjA5NDc2NDY5MX0.X5URdWNvIez_jiuT4uyhBtTAi9Vcr2SDf9KyKE5YdE0";
 
-const defaultUsers = [
-    { name: "Amar Softić", username: "pro_gamer", email: "amar@test.com", password: "123", coins: 250 },
-    { name: "Emina Spahić", username: "hardware_fan", email: "emina@test.com", password: "123", coins: 120 }
-];
+// Inicijalizacija Supabase klijenta
+const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-let products = JSON.parse(localStorage.getItem('hardware_products')) || defaultProducts;
-let users = JSON.parse(localStorage.getItem('hardware_users')) || defaultUsers;
-let reports = JSON.parse(localStorage.getItem('hardware_reports')) || [];
-let chats = JSON.parse(localStorage.getItem('hardware_chats')) || [];
+// Lokalne varijable za aplikaciju (puniti će se podacima sa servera)
+let products = [];
+let users = [];
+let reports = [];
+let chats = [];
 
 let isAdmin = sessionStorage.getItem('isAdminActive') === 'true';
 let currentUser = JSON.parse(sessionStorage.getItem('currentUserActive')) || null;
@@ -20,7 +17,54 @@ let activeChatUser = null;
 
 const grid = document.getElementById('productGrid');
 
-// --- 2. RENDEROVANJE KARTICA NA FEED-U SA IZDVAJANJEM ---
+// === 2. POVEZIVANJE SA ONLINE BAZOM (Učitavanje i sinhronizacija) ===
+async function ucitajPodatkeIzBaze() {
+    try {
+        // 1. Povuci artikle
+        let { data: artikli, error: err1 } = await _supabase.from('artikli').select('*');
+        if (err1) throw err1;
+        products = artikli || [];
+
+        // 2. Povuci korisnike
+        let { data: korisnici, error: err2 } = await _supabase.from('javni_korisnici').select('*');
+        if (err2) throw err2;
+        users = korisnici || [];
+
+        // 3. Povuci sve privatne poruke
+        let { data: poruke, error: err3 } = await _supabase.from('chats').select('*').order('id', { ascending: true });
+        if (err3) throw err3;
+        chats = poruke || [];
+
+        // 4. Povuci reporte
+        let { data: prijava, error: err4 } = await _supabase.from('reporti').select('*');
+        if (err4) throw err4;
+        reports = prijava || [];
+
+        // Sinhronizuj podatke trenutno ulogovanog korisnika ako postoje promjene (npr. coins)
+        if (currentUser) {
+            const osvezeniJa = users.find(u => u.username === currentUser.username);
+            if (osvezeniJa) {
+                currentUser = osvezeniJa;
+                sessionStorage.setItem('currentUserActive', JSON.stringify(currentUser));
+            }
+        }
+
+        // Osveži prikaz na stranici
+        proveriAdminInterfejs();
+        render(products);
+        if (isAdmin) osveziAdminPanel();
+        
+        // Ako je korisnik u chatu, drži poruke ažurnim
+        if (document.getElementById('profileModal').style.display === 'block') {
+            osveziChatListu(activeChatUser);
+        }
+
+    } catch (error) {
+        console.error("Greška pri sinhronizaciji sa serverom:", error.message);
+    }
+}
+
+// === 3. RENDEROVANJE KARTICA NA FEED-U SA IZDVAJANJEM ===
 function render(productsToDisplay, currentCategoryFilter = "Sve") {
     if(!grid) return;
     if(productsToDisplay.length === 0) {
@@ -28,11 +72,9 @@ function render(productsToDisplay, currentCategoryFilter = "Sve") {
         return;
     }
 
-    // SORTIRANJE: Prvo idu izdvajanja na Main Page, pa onda izdvajanja u kategoriji (ako se podudara sa filterom), pa obični oglasi
+    // Kolegino sortiravanje: Main Page izdvojeni -> Category izdvojeni -> Obični
     let sortiraniProizvodi = [...productsToDisplay].sort((a, b) => {
-        let nivoA = 0;
-        let nivoB = 0;
-
+        let nivoA = 0; let nivoB = 0;
         if (a.promote === 'main') nivoA = 3;
         else if (a.promote === 'category' && currentCategoryFilter !== "Sve") nivoA = 2;
         else if (a.promote === 'category') nivoA = 1;
@@ -45,12 +87,10 @@ function render(productsToDisplay, currentCategoryFilter = "Sve") {
     });
 
     grid.innerHTML = sortiraniProizvodi.map((p) => {
-        const indexUBazi = products.findIndex(realP => realP.id === p.id);
         const adminButtonHTML = isAdmin ? 
-            `<button onclick="obrisiArtikal(${indexUBazi})" class="btn-action btn-danger full-width" style="margin-top:10px">Obriši oglas (Admin)</button>` : '';
+            `<button onclick="obrisiArtikalIzBaze(${p.id})" class="btn-action btn-danger full-width" style="margin-top:10px">Obriši oglas (Admin)</button>` : '';
 
-        let klasaIzdvojenog = '';
-        let bedzIzdvojenog = '';
+        let klasaIzdvojenog = ''; let bedzIzdvojenog = '';
         if(p.promote === 'main') {
             klasaIzdvojenog = 'featured-main';
             bedzIzdvojenog = `<span class="badge-featured">⭐ TOP Ponuda</span>`;
@@ -81,25 +121,25 @@ function render(productsToDisplay, currentCategoryFilter = "Sve") {
     }).join('');
 }
 
-function obrisiArtikal(index) {
-    if(confirm("Da li ste sigurni da želite obrisati ovaj oglas?")) {
-        products.splice(index, 1);
-        localStorage.setItem('hardware_products', JSON.stringify(products));
-        render(products);
-        if(isAdmin) osveziAdminPanel();
+async function obrisiArtikalIzBaze(id) {
+    if(confirm("Da li ste sigurni da želite obrisati ovaj oglas sa servera?")) {
+        const { error } = await _supabase.from('artikli').delete().eq('id', id);
+        if(!error) {
+            alert("Oglas uspješno uklonjen.");
+            ucitajPodatkeIzBaze();
+        }
     }
 }
 
-// --- 3. LOGIKA ZA PREGLED DETALJA ARTIKLA ---
-function otvoriDetaljeArtikla(id) {
+// === 4. LOGIKA ZA PREGLED DETALJA ARTIKLA (Pregledi idu na server) ===
+async function otvoriDetaljeArtikla(id) {
     const artikal = products.find(p => p.id === id);
     if(!artikal) return;
 
-    // Povećaj broj pregleda
+    // Povećaj broj pregleda i pošalji izmjenu na bazu
     artikal.views = (artikal.views || 0) + 1;
-    localStorage.setItem('hardware_products', JSON.stringify(products));
+    await _supabase.from('artikli').update({ views: artikal.views }).eq('id', id);
 
-    // Popuni podatke u modalu
     document.getElementById('detTitle').innerText = artikal.name;
     document.getElementById('detImg').src = artikal.img;
     document.getElementById('detPrice').innerText = `${artikal.price} KM`;
@@ -111,8 +151,6 @@ function otvoriDetaljeArtikla(id) {
     document.getElementById('detViews').innerText = `👁️ ${artikal.views} pregleda`;
 
     const chatBtn = document.getElementById('btnOpenChat');
-    
-    // Ako je korisnik vlasnik svog oglasa, sakrij dugme za chat sa samim sobom
     if(currentUser && currentUser.username === artikal.owner) {
         chatBtn.style.display = 'none';
     } else {
@@ -133,7 +171,7 @@ function otvoriDetaljeArtikla(id) {
     render(products);
 }
 
-// --- 4. PRIVATNE PORUKE I PROFIL ---
+// === 5. PRIVATNE PORUKE I PROFIL (Online Chat) ===
 function otvoriProfilIKomunikaciju(saKorisnikom = null) {
     if(!currentUser) return;
 
@@ -150,7 +188,6 @@ function osveziChatListu(selektujKorisnika = null) {
     const listContainer = document.getElementById('chatUsersList');
     if(!listContainer) return;
 
-    // Pronađi sve ljude s kojima trenutni korisnik ima istoriju poruka
     let kontakti = [];
     chats.forEach(c => {
         if(c.sender === currentUser.username && !kontakti.includes(c.receiver)) kontakti.push(c.receiver);
@@ -194,7 +231,6 @@ function prikaziPorukeZaKorisnika(sagovornik) {
         return;
     }
 
-    // Filtriraj poruke između nas dvoje
     const filtriranePoruke = chats.filter(c => 
         (c.sender === currentUser.username && c.receiver === sagovornik) ||
         (c.sender === sagovornik && c.receiver === currentUser.username)
@@ -210,7 +246,7 @@ function prikaziPorukeZaKorisnika(sagovornik) {
 
 const chatForm = document.getElementById('chatForm');
 if(chatForm) {
-    chatForm.addEventListener('submit', function(e) {
+    chatForm.addEventListener('submit', async function(e) {
         e.preventDefault();
         const input = document.getElementById('chatInput');
         const tekst = input.value.trim();
@@ -223,24 +259,23 @@ if(chatForm) {
             text: tekst
         };
 
-        chats.push(novaPoruka);
-        localStorage.setItem('hardware_chats', JSON.stringify(chats));
-        input.value = '';
-        prikaziPorukeZaKorisnika(activeChatUser);
+        // Šaljemo poruku u cloud bazu
+        const { error } = await _supabase.from('chats').insert([novaPoruka]);
+        if(!error) {
+            input.value = '';
+            ucitajPodatkeIzBaze(); // Odmah povuci nove poruke sa servera
+        }
     });
 }
 
-// --- 5. LOGIKA ZA OBJAVU ARTIKALA (SA PREMIUM COIN IZBOROM) ---
+// === 6. LOGIKA ZA OBJAVU ARTIKALA (Naplata promocije preko servera) ===
 const sellForm = document.getElementById('sellForm');
 if(sellForm) {
-    sellForm.addEventListener('submit', function(event) {
+    sellForm.addEventListener('submit', async function(event) {
         event.preventDefault();
 
-        // Dupla sigurnosna provjera login stanja
         if(!currentUser) {
-            alert("Niste ulogovani! Morate se prijaviti.");
-            document.getElementById('sellModal').style.display = "none";
-            document.getElementById('authModal').style.display = "block";
+            alert("Niste ulogovani!");
             return;
         }
 
@@ -249,9 +284,8 @@ if(sellForm) {
         if(promoteTip === 'category') cijenaIzdvajanja = 30;
         if(promoteTip === 'main') cijenaIzdvajanja = 60;
 
-        // Provjera stanja novčanika
         if(currentUser.coins < cijenaIzdvajanja) {
-            alert(`Nemate dovoljno Coins-a za ovu vrstu izdvajanja! Potrebno vam je ${cijenaIzdvajanja} PC, a imate ${currentUser.coins} PC.`);
+            alert(`Nemate dovoljno Coins-a! Potrebno vam je ${cijenaIzdvajanja} PC.`);
             return;
         }
 
@@ -260,48 +294,41 @@ if(sellForm) {
 
         if (fajl) {
             const reader = new FileReader();
-            reader.onload = function(e) {
-                // Skidanje coina u bazi korisnika
+            reader.onload = async function(e) {
+                // Skidanje coina na online bazi
                 if(cijenaIzdvajanja > 0) {
-                    const uIdx = users.findIndex(u => u.username === currentUser.username);
-                    if(uIdx !== -1) {
-                        users[uIdx].coins -= cijenaIzdvajanja;
-                        currentUser.coins = users[uIdx].coins;
-                        localStorage.setItem('hardware_users', JSON.stringify(users));
-                        sessionStorage.setItem('currentUserActive', JSON.stringify(currentUser));
-                    }
+                    let noviKolicnikCoinsa = currentUser.coins - cijenaIzdvajanja;
+                    await _supabase.from('javni_korisnici').update({ coins: noviKolicnikCoinsa }).eq('username', currentUser.username);
                 }
 
                 const noviArtikal = {
-                    id: Date.now(), // Unikatan ID za otvaranje detalja
                     name: document.getElementById('prodName').value,
                     price: parseFloat(document.getElementById('prodPrice').value),
                     category: document.getElementById('prodCategory').value,
                     brand: document.getElementById('prodBrand').value,
                     condition: document.querySelector('input[name="prodCondition"]:checked').value,
                     specs: document.getElementById('prodSpecs').value,
-                    owner: currentUser.username, // Fiksan username iz sesije
+                    owner: currentUser.username,
                     img: e.target.result,
                     views: 0,
                     promote: promoteTip
                 };
 
-                products.unshift(noviArtikal);
-                localStorage.setItem('hardware_products', JSON.stringify(products));
-                
-                sellForm.reset();
-                document.getElementById('sellModal').style.display = "none";
-                alert(cijenaIzdvajanja > 0 ? `Uspješno! Oglas je izdvojen i skinuto je ${cijenaIzdvajanja} Coinsa.` : "Vaš oglas je uspješno objavljen besplatno!");
-                
-                proveriAdminInterfejs();
-                render(products);
+                // Upis artikla na internet server
+                const { error } = await _supabase.from('artikli').insert([noviArtikal]);
+                if(!error) {
+                    sellForm.reset();
+                    document.getElementById('sellModal').style.display = "none";
+                    alert("Artikal uspješno pohranjen na serveru!");
+                    ucitajPodatkeIzBaze();
+                }
             };
             reader.readAsDataURL(fajl);
         }
     });
 }
 
-// --- 6. REGISTRACIJA I SLANJE EMAILJS ---
+// === 7. REGISTRACIJA PREKO EMAILJS-A I UPIS NA SERVER ===
 emailjs.init("ulfQJccZt4N0kFq78"); 
 const registerForm = document.getElementById('registerForm');
 const btnRegister = document.getElementById('btnRegister');
@@ -309,20 +336,27 @@ const btnRegister = document.getElementById('btnRegister');
 if(registerForm) {
     registerForm.addEventListener('submit', function(event) {
         event.preventDefault();
+        
+        const testniUsername = document.getElementById('regUsername').value.trim();
+        if(users.some(u => u.username === testniUsername)) {
+            alert("Korisničko ime je već zauzeto na serveru!");
+            return;
+        }
+
         btnRegister.innerText = "Slanje...";
         btnRegister.disabled = true;
 
         const templateParams = {
             ime: document.getElementById('regName').value,
             prezime: document.getElementById('regSurname').value,
-            username: document.getElementById('regUsername').value.trim(),
+            username: testniUsername,
             email_korisnika: document.getElementById('regEmail').value,
             datum: document.getElementById('regDob').value
         };
 
         emailjs.send("service_th1lfel", "template_63qqwfw", templateParams)
-            .then(function() {
-                alert("Uspješna registracija! Poklon 100 PC uračunat.");
+            .then(async function() {
+                alert("Uspješna registracija na server! Poklon 100 PC uračunat.");
                 
                 const noviUser = {
                     name: templateParams.ime + " " + templateParams.prezime,
@@ -332,10 +366,8 @@ if(registerForm) {
                     coins: 100 
                 };
 
-                if(!users.some(u => u.username === noviUser.username)) {
-                    users.push(noviUser);
-                    localStorage.setItem('hardware_users', JSON.stringify(users));
-                }
+                // Upis novog korisnika u online bazu
+                await _supabase.from('javni_korisnici').insert([noviUser]);
 
                 registerForm.reset();
                 document.getElementById('authModal').style.display = "none";
@@ -344,7 +376,7 @@ if(registerForm) {
                 
                 currentUser = noviUser;
                 sessionStorage.setItem('currentUserActive', JSON.stringify(currentUser));
-                proveriAdminInterfejs();
+                ucitajPodatkeIzBaze();
             }, function(error) {
                 alert("Greška pri slanju maila: " + error.text);
                 btnRegister.innerText = "Registruj se";
@@ -353,7 +385,7 @@ if(registerForm) {
     });
 }
 
-// --- 7. PRIJAVA, KONTROLA INTERFEJSA I PREBACIVANJE FORMI ---
+// === 8. PRIJAVA KORISNIKA (Provjera sa podacima iz online baze) ===
 const loginForm = document.getElementById('loginForm');
 const authModalTitle = document.getElementById('authModalTitle');
 const linkToRegister = document.getElementById('linkToRegister');
@@ -370,6 +402,7 @@ if(loginForm) {
         const uName = document.getElementById('loginUsername').value.trim();
         const uPass = document.getElementById('loginPassword').value;
 
+        // Provjera u listi korisnika povučenih sa servera
         const pronadjeniKorisnik = users.find(u => u.username === uName);
 
         if(pronadjeniKorisnik) {
@@ -379,9 +412,9 @@ if(loginForm) {
                 alert(`Dobrodošli nazad, ${currentUser.name}!`);
                 loginForm.reset();
                 document.getElementById('authModal').style.display = 'none';
-                proveriAdminInterfejs();
+                ucitajPodatkeIzBaze();
             } else { alert("Pogrešna lozinka!"); }
-        } else { alert("Korisničko ime ne postoji."); }
+        } else { alert("Korisničko ime ne postoji na sistemu."); }
     });
 }
 
@@ -424,7 +457,7 @@ function proveriAdminInterfejs() {
     }
 }
 
-// --- Gumb za kreiranje (Sprečavanje ako niko nije logovan) ---
+// Gumb za otvaranje forme za prodaju
 const btnSell = document.getElementById("openSell");
 if(btnSell) {
     btnSell.onclick = () => {
@@ -437,13 +470,12 @@ if(btnSell) {
     };
 }
 
-// Otvaranje profila klikom na korisnički badge u navbaru
 const userBadge = document.getElementById('userBadge');
 if(userBadge) {
     userBadge.onclick = () => otvoriProfilIKomunikaciju();
 }
 
-// --- Ostatak standardnog koda (Admin, Filteri, Zatvaranja Modala) ---
+// === 9. ADMINISTRACIJA PANEL (Izmjene direktno idu na internet server) ===
 const adminLoginForm = document.getElementById('adminLoginForm');
 if(adminLoginForm) {
     adminLoginForm.addEventListener('submit', function(e) {
@@ -455,7 +487,7 @@ if(adminLoginForm) {
             alert("Dobrodošli nazad, šefe!");
             adminLoginForm.reset();
             document.getElementById('adminModal').style.display = 'none';
-            proveriAdminInterfejs(); osveziAdminPanel(); render(products);
+            ucitajPodatkeIzBaze();
         } else { alert("Pogrešni admin podaci!"); }
     });
 }
@@ -471,44 +503,44 @@ if(logoutBtn) {
 
 function osveziAdminPanel() {
     const tableBody = document.getElementById('adminUsersTableBody');
-    const reportsContainer = document.getElementById('adminReportsContainer');
     if(tableBody) {
-        tableBody.innerHTML = users.map((u, idx) => {
+        tableBody.innerHTML = users.map((u) => {
             const brojObjava = products.filter(p => p.owner === u.username).length;
-            return `<tr><td><b>${u.name}</b></td><td>@${u.username}</td><td>${u.email}</td><td style="text-align:center;"><b>${brojObjava}</b></td><td style="color:#eab308; font-weight:800;">💰 ${u.coins} Coins</td><td><button onclick="promijeniCoinse(${idx}, 50)" class="btn-coin plus">+50</button><button onclick="promijeniCoinse(${idx}, -50)" class="btn-coin minus">-50</button></td></tr>`;
+            return `<tr><td><b>${u.name}</b></td><td>@${u.username}</td><td>${u.email}</td><td style="text-align:center;"><b>${brojObjava}</b></td><td style="color:#eab308; font-weight:800;">💰 ${u.coins} Coins</td><td><button onclick="promijeniCoinseNaServeru(${u.id}, ${u.coins}, 50)" class="btn-coin plus">+50</button><button onclick="promijeniCoinseNaServeru(${u.id}, ${u.coins}, -50)" class="btn-coin minus">-50</button></td></tr>`;
         }).join('');
     }
 }
 
-function promijeniCoinse(index, iznos) {
-    users[index].coins = (users[index].coins || 0) + iznos;
-    localStorage.setItem('hardware_users', JSON.stringify(users));
-    osveziAdminPanel();
-    if(currentUser && currentUser.username === users[index].username) {
-        currentUser.coins = users[index].coins;
-        sessionStorage.setItem('currentUserActive', JSON.stringify(currentUser));
-        proveriAdminInterfejs();
-    }
+async function promijeniCoinseNaServeru(id, trenutniCoins, iznos) {
+    let noviIznos = trenutniCoins + iznos;
+    if(noviIznos < 0) noviIznos = 0;
+    
+    const { error } = await _supabase.from('javni_korisnici').update({ coins: noviIznos }).eq('id', id);
+    if(!error) ucitajPodatkeIzBaze();
 }
 
 const reportForm = document.getElementById('reportForm');
 if(reportForm) {
-    reportForm.addEventListener('submit', function(e) {
+    reportForm.addEventListener('submit', async function(e) {
         e.preventDefault();
-        reports.push({ username: document.getElementById('repUser').value, subject: document.getElementById('repSubject').value, message: document.getElementById('repMessage').value });
-        localStorage.setItem('hardware_reports', JSON.stringify(reports));
-        alert("Poslano podršci!"); reportForm.reset(); document.getElementById('reportModal').style.display = 'none';
+        const noviReport = { username: document.getElementById('repUser').value, subject: document.getElementById('repSubject').value, message: document.getElementById('repMessage').value };
+        
+        const { error } = await _supabase.from('reporti').insert([noviReport]);
+        if(!error) {
+            alert("Poslano podršci na server!"); 
+            reportForm.reset(); 
+            document.getElementById('reportModal').style.display = 'none';
+            ucitajPodatkeIzBaze();
+        }
     });
 }
 
-// --- FILTRIRANJE ---
+// === 10. FILTRIRANJE I PRETRAGA ===
 const searchInput = document.getElementById('searchInput');
 const filterCategory = document.getElementById('filterCategory');
 const filterBrand = document.getElementById('filterBrand');
 const filterMinPrice = document.getElementById('filterMinPrice');
 const filterMaxPrice = document.getElementById('filterMaxPrice');
-const filterNew = document.getElementById('filterNew');
-const filterUsed = document.getElementById('filterUsed');
 
 function filtrirajSve() {
     const searchText = searchInput.value.toLowerCase();
@@ -531,7 +563,7 @@ function filtrirajSve() {
 if(searchInput) searchInput.addEventListener('input', filtrirajSve);
 if(document.getElementById('btnApplyFilters')) document.getElementById('btnApplyFilters').onclick = () => { filtrirajSve(); document.getElementById("filterModal").style.display = "none"; };
 
-// Modali otvaranja / zatvaranja kros prozor dugmad
+// Zatvaranje i otvaranje modala
 const spanFilter = document.getElementById("closeFilters"); if(spanFilter) spanFilter.onclick = () => document.getElementById("filterModal").style.display = "none";
 if(document.getElementById("openFilters")) document.getElementById("openFilters").onclick = () => document.getElementById("filterModal").style.display = "block";
 if(document.getElementById("closeSell")) document.getElementById("closeSell").onclick = () => document.getElementById("sellModal").style.display = "none";
@@ -549,4 +581,7 @@ window.onclick = (e) => {
     if(e.target.classList.contains('modal')) e.target.style.display = 'none';
 }
 
-window.onload = () => { proveriAdminInterfejs(); render(products); };
+// Pokretanje i prvo povlačenje sa mreže
+window.onload = () => { 
+    ucitajPodatkeIzBaze(); 
+};
