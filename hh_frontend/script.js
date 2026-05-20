@@ -539,7 +539,8 @@ if(sellForm) {
         }
     });
 }
-
+// test
+//test
 // --- 6. REGISTRACIJA I SLANJE EMAILJS ---
 emailjs.init("ulfQJccZt4N0kFq78"); 
 const registerForm = document.getElementById('registerForm');
