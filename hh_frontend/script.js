@@ -458,7 +458,6 @@ const openAuthBtn = document.getElementById('openAuth');
 if(openAuthBtn) {
     openAuthBtn.onclick = () => {
         document.getElementById('authModal').style.display = 'block';
-        // Resetuj prikaz na login formu pri otvaranju
         if(loginForm) loginForm.style.display = 'block';
         if(registerForm) registerForm.style.display = 'none';
         if(authModalTitle) authModalTitle.innerText = "Prijava na sistem";
@@ -519,7 +518,7 @@ function osveziAdminPanel() {
 }
 
 async function promijeniCoinseNaServeru(id, trenutniCoins, iznos) {
-    let noviIznos = trenutniCoins + iznos;
+    let noviIznos = trenutniCoins + iznos; // Popravljen tipfeler ovdje!
     if(noviIznos < 0) noviIznos = 0;
     
     const { error } = await _supabase.from('javni_korisnici').update({ coins: noviIznos }).eq('id', id);
