@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="bs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HardwareHub | Admin Panel</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="logo">HARDWARE<span>HUB</span></div>
+        <div class="nav-actions">
+            <a href="index.html" class="btn-action secondary">Nazad na Marketplace</a>
+            <button id="adminLogout" class="btn-action secondary" style="display:none;">Odjava</button>
+        </div>
+    </nav>
+
+    <main class="admin-main">
+        <section id="adminLoginSection" class="admin-pane">
+            <div class="admin-card">
+                <h2>Admin prijava</h2>
+                <p>Pristup kontrolnoj tabli je moguć samo uz administratorsku lozinku.</p>
+                <form id="adminLoginForm">
+                    <div class="filter-item">
+                        <label>Admin korisničko ime</label>
+                        <input type="text" id="adminLoginUser" class="form-input" placeholder="admin" value="admin" required>
+                    </div>
+                    <div class="filter-item">
+                        <label>Admin lozinka</label>
+                        <input type="password" id="adminLoginPass" class="form-input" required placeholder="Lozinka">
+                    </div>
+                    <button type="submit" class="btn-action primary full-width">Prijavi se</button>
+                </form>
+            </div>
+        </section>
+
+        <section id="adminDashboardSection" class="admin-pane" style="display:none;">
+            <div class="admin-hero">
+                <div>
+                    <h1>HardwareHub Admin Panel</h1>
+                    <p id="adminWelcome" style="margin-bottom:10px; color:var(--accent);"></p>
+                    <p>Upravljajte korisnicima, uplatama, prijavama i logovima u jednom modernom administrativnom sučelju.</p>
+                </div>
+                <div class="dashboard-stats">
+                    <div><span id="statUsers">0</span><small>korisnika</small></div>
+                    <div><span id="statAds">0</span><small>oglasa</small></div>
+                    <div><span id="statReports">0</span><small>prijava</small></div>
+                </div>
+            </div>
+
+            <div class="admin-blocks">
+                <div class="admin-card admin-summary">
+                    <h3>Upravljanje korisnicima</h3>
+                    <div style="overflow-x:auto;">
+                        <table class="admin-table admin-table-wide">
+                            <thead>
+                                <tr>
+                                    <th>Ime</th>
+                                    <th>Korisnik</th>
+                                    <th>Email</th>
+                                    <th>Rola</th>
+                                    <th>HHCoins</th>
+                                    <th>Oglasa</th>
+                                    <th>Akcije</th>
+                                </tr>
+                            </thead>
+                            <tbody id="adminUsersTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="admin-card">
+                    <h3>Inbox prijava</h3>
+                    <div id="adminReportsContainer" class="reports-list admin-list"></div>
+                </div>
+                <div class="admin-card">
+                    <h3>Administrativni log</h3>
+                    <div id="adminLogsContainer" class="reports-list admin-list"></div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script src="admin.js"></script>
+</body>
+</html>
