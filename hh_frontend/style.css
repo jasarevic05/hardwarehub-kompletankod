@@ -9,12 +9,14 @@
     --success: #10b981;
     --featured: #eab308;
 }
+
 /* Globalni stilovi */
 body {
     background-color: var(--bg);
     color: var(--text);
     font-family: 'Plus Jakarta Sans', sans-serif;
     margin: 0;
+    padding: 0;
 }
 
 /* Navbar */
@@ -27,7 +29,8 @@ body {
     backdrop-filter: blur(15px);
     border-bottom: 1px solid var(--border);
     position: sticky;
-    top: 0; z-index: 100;
+    top: 0; 
+    z-index: 100;
 }
 
 .logo { font-size: 1.5rem; font-weight: 800; letter-spacing: -1px; }
@@ -57,7 +60,7 @@ body {
 }
 
 .search-wrapper input {
-    background: none; border: none; color: white; padding: 10px; width: 300px; outline: none;
+    background: none; border: none; color: white; padding: 10px; width: 200px; outline: none;
 }
 
 .btn-filter-icon {
@@ -178,15 +181,15 @@ body {
 
 /* Chat elementi */
 .chat-user-item {
-    padding: 10px; border-radius: 8px; color: var(--text-dim); cursor: pointer; font-weight: 600; font-size: 0.9rem; transition: 0.2s;
+    padding: 10px; border-radius: 8px; color: var(--text-dim); cursor: pointer; font-weight: 600; font-size: 0.9rem; transition: 0.2s; margin-bottom: 5px;
 }
 .chat-user-item:hover, .chat-user-item.active { background: rgba(59, 130, 246, 0.15); color: white; }
 
 .msg-bubble {
-    max-width: 70%; padding: 10px 14px; border-radius: 12px; font-size: 0.9rem; line-height: 1.4; word-wrap: break-word;
+    max-width: 70%; padding: 10px 14px; border-radius: 12px; font-size: 0.9rem; line-height: 1.4; word-wrap: break-word; margin-bottom: 5px;
 }
 .msg-bubble.sent { background: var(--accent); color: white; align-self: flex-end; border-bottom-right-radius: 2px; }
 .msg-bubble.received { background: var(--card); border: 1px solid var(--border); color: white; align-self: flex-start; border-bottom-left-radius: 2px; }
 
 #linkToRegister, #linkToLogin, #linkAdminLogin { cursor: pointer; transition: color 0.2s ease; }
-#linkToRegister:hover, #linkToLogin:hover { filter: brightness(1.2); text-decoration: underline !important; }
+#linkToRegister:hover, #linkToLogin:hover, #linkAdminLogin:hover { filter: brightness(1.2); text-decoration: underline !important; }

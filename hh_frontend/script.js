@@ -1,9 +1,6 @@
-// === 1. SUPABASE KONFIGURACIJA (ZAMIJENI SA TVOJIM PODACIMA) ===
+// === 1. SUPABASE KONFIGURACIJA ===
 const SUPABASE_URL = "https://gvwmkqqhpdklikkbciol.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2d21rcXFocGRrbGlra2JjaW9sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxODg2OTEsImV4cCI6MjA5NDc2NDY5MX0.X5URdWNvIez_jiuT4uyhBtTAi9Vcr2SDf9KyKE5YdE0";
-
-// === GLOBALNE VARIJABLE I INICIJALIZACIJA ===
-
 
 // Inicijalizacija Supabase klijenta
 const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -104,7 +101,7 @@ function render(productsToDisplay, currentCategoryFilter = "Sve") {
                         <span>Objavio: <b style="color:#3b82f6;">@${p.owner || 'Gost'}</b></span>
                         <span class="badge-condition">${p.condition}</span>
                     </div>
-                    <p class="specs">${p.specs}</p>
+                    <p class="specs">${p.specs || ''}</p>
                 </div>
                 <div>
                     <p class="price">${p.price} KM</p>
@@ -140,7 +137,7 @@ async function otvoriDetaljeArtikla(id) {
     document.getElementById('detCondition').innerText = artikal.condition;
     document.getElementById('detCategory').innerText = artikal.category;
     document.getElementById('detBrand').innerText = artikal.brand;
-    document.getElementById('detSpecs').innerText = artikal.specs;
+    document.getElementById('detSpecs').innerText = artikal.specs || '';
     document.getElementById('detOwner').innerText = `@${artikal.owner}`;
     document.getElementById('detViews').innerText = `👁️ ${artikal.views} pregleda`;
 
@@ -256,7 +253,7 @@ if(chatForm) {
     });
 }
 
-// === 6. LOGIKA ZA OBJAVU ARTIKALA (FIKSANO OSTAJANJE I POTVRDA) ===
+// === 6. LOGIKA ZA OBJAVU ARTIKALA ===
 const sellForm = document.getElementById('sellForm');
 if(sellForm) {
     sellForm.addEventListener('submit', async function(event) {
@@ -303,13 +300,12 @@ if(sellForm) {
 
                 const { error } = await _supabase.from('artikli').insert([noviArtikal]);
                 if(!error) {
-                    // FIKS: Potvrda korisniku i osvežavanje baze
                     alert(cijenaIzdvajanja > 0 ? `Uspješno! Oglas je izdvojen i skinuto je ${cijenaIzdvajanja} Coinsa.` : "Vaš oglas je uspješno objavljen na serveru!");
                     sellForm.reset();
                     document.getElementById('sellModal').style.display = "none";
-                    ucitajPodatkeIzBaze(); // Ovo osigurava da artikal OSTANE na ekranu
+                    ucitajPodatkeIzBaze(); 
                 } else {
-                    alert("Greška pri spavanju artikla: " + error.message);
+                    alert("Greška pri spremanju artikla: " + error.message);
                 }
             };
             reader.readAsDataURL(fajl);
@@ -317,7 +313,7 @@ if(sellForm) {
     });
 }
 
-// === 7. REGISTRACIJA (FIKSANO DUGME) ===
+// === 7. REGISTRACIJA ===
 emailjs.init("ulfQJccZt4N0kFq78"); 
 const registerForm = document.getElementById('registerForm');
 const btnRegister = document.getElementById('btnRegister');
@@ -328,7 +324,6 @@ if(registerForm) {
         
         const testniUsername = document.getElementById('regUsername').value.trim();
         
-        // Provjera da li korisnik već postoji na serveru
         if(users.some(u => u.username.toLowerCase() === testniUsername.toLowerCase())) {
             alert("Korisničko ime je već zauzeto na serveru!");
             return;
@@ -384,8 +379,18 @@ const linkToRegister = document.getElementById('linkToRegister');
 const linkToLogin = document.getElementById('linkToLogin');
 
 if(linkToRegister && linkToLogin) {
-    linkToRegister.onclick = (e) => { e.preventDefault(); loginForm.style.display = 'none'; registerForm.style.display = 'block'; authModalTitle.innerText = "Registracija novog računa"; };
-    linkToLogin.onclick = (e) => { e.preventDefault(); registerForm.style.display = 'none'; loginForm.style.display = 'block'; authModalTitle.innerText = "Prijava na sistem"; };
+    linkToRegister.onclick = (e) => { 
+        e.preventDefault(); 
+        loginForm.style.display = 'none'; 
+        registerForm.style.display = 'block'; 
+        authModalTitle.innerText = "Registracija novog računa"; 
+    };
+    linkToLogin.onclick = (e) => { 
+        e.preventDefault(); 
+        registerForm.style.display = 'none'; 
+        loginForm.style.display = 'block'; 
+        authModalTitle.innerText = "Prijava na sistem"; 
+    };
 }
 
 if(loginForm) {
@@ -446,6 +451,18 @@ function proveriAdminInterfejs() {
         if(prodOwnerInput) prodOwnerInput.value = "";
         if(repUserInput) repUserInput.value = "";
     }
+}
+
+// Otvaranje glavnog Auth modala preko navbar dugmeta
+const openAuthBtn = document.getElementById('openAuth');
+if(openAuthBtn) {
+    openAuthBtn.onclick = () => {
+        document.getElementById('authModal').style.display = 'block';
+        // Resetuj prikaz na login formu pri otvaranju
+        if(loginForm) loginForm.style.display = 'block';
+        if(registerForm) registerForm.style.display = 'none';
+        if(authModalTitle) authModalTitle.innerText = "Prijava na sistem";
+    };
 }
 
 const btnSell = document.getElementById("openSell");
@@ -533,14 +550,14 @@ const filterMinPrice = document.getElementById('filterMinPrice');
 const filterMaxPrice = document.getElementById('filterMaxPrice');
 
 function filtrirajSve() {
-    const searchText = searchInput.value.toLowerCase();
-    const odabranaKategorija = filterCategory.value;
-    const odabraniBrend = filterBrand.value;
-    const minCijena = parseFloat(filterMinPrice.value) || 0;
-    const maxCijena = parseFloat(filterMaxPrice.value) || Infinity;
+    const searchText = searchInput ? searchInput.value.toLowerCase() : "";
+    const odabranaKategorija = filterCategory ? filterCategory.value : "Sve";
+    const odabraniBrend = filterBrand ? filterBrand.value : "Sve";
+    const minCijena = filterMinPrice ? (parseFloat(filterMinPrice.value) || 0) : 0;
+    const maxCijena = filterMaxPrice ? (parseFloat(filterMaxPrice.value) || Infinity) : Infinity;
 
     const filtrirani = products.filter(p => {
-        const matchesSearch = p.name.toLowerCase().includes(searchText) || p.specs.toLowerCase().includes(searchText);
+        const matchesSearch = (p.name?.toLowerCase() || "").includes(searchText) || (p.specs?.toLowerCase() || "").includes(searchText);
         const matchesCategory = (odabranaKategorija === "Sve") || (p.category === odabranaKategorija);
         const matchesBrand = (odabraniBrend === "Sve") || (p.brand === odabraniBrend);
         const matchesPrice = p.price >= minCijena && p.price <= maxCijena;
@@ -553,7 +570,8 @@ function filtrirajSve() {
 if(searchInput) searchInput.addEventListener('input', filtrirajSve);
 if(document.getElementById('btnApplyFilters')) document.getElementById('btnApplyFilters').onclick = () => { filtrirajSve(); document.getElementById("filterModal").style.display = "none"; };
 
-const spanFilter = document.getElementById("closeFilters"); if(spanFilter) spanFilter.onclick = () => document.getElementById("filterModal").style.display = "none";
+// Event handleri za zatvaranje/otvaranje svih prozora
+if(document.getElementById("closeFilters")) document.getElementById("closeFilters").onclick = () => document.getElementById("filterModal").style.display = "none";
 if(document.getElementById("openFilters")) document.getElementById("openFilters").onclick = () => document.getElementById("filterModal").style.display = "block";
 if(document.getElementById("closeSell")) document.getElementById("closeSell").onclick = () => document.getElementById("sellModal").style.display = "none";
 if(document.getElementById("closeAuth")) document.getElementById("closeAuth").onclick = () => document.getElementById("authModal").style.display = "none";
