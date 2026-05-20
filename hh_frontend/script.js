@@ -12,12 +12,22 @@ const defaultUsers = [
 const SUPABASE_URL = "https://gvwmkqqhpdklikkbciol.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2d21rcXFocGRrbGlra2JjaW9sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxODg2OTEsImV4cCI6MjA5NDc2NDY5MX0.X5URdWNvIez_jiuT4uyhBtTAi9Vcr2SDf9KyKE5YdE0";
 const supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) || null;
-if (!supabaseClient) console.warn("Supabase client could not be created. Check if the Supabase script loaded correctly.");
 
-let products = JSON.parse(localStorage.getItem('hardware_products')) || defaultProducts;
-let users = JSON.parse(localStorage.getItem('hardware_users')) || defaultUsers;
-let reports = JSON.parse(localStorage.getItem('hardware_reports')) || [];
-let chats = JSON.parse(localStorage.getItem('hardware_chats')) || [];
+console.log('🔌 Supabase inicijalizacija:');
+console.log('   URL:', SUPABASE_URL);
+console.log('   Klijent dostupan:', supabaseClient !== null);
+console.log('   window.supabase dostupan:', typeof window.supabase !== 'undefined');
+
+if (!supabaseClient) {
+    console.warn("⚠️ Supabase client nije inicijalizovan. Provjerite da li je Supabase script učitan.");
+} else {
+    console.log("✓ Supabase client uspješno inicijalizovan");
+}
+
+let products = [];
+let users = [];
+let reports = [];
+let chats = [];
 
 let isAdmin = sessionStorage.getItem('isAdminActive') === 'true';
 let currentUser = JSON.parse(sessionStorage.getItem('currentUserActive')) || null;
@@ -25,14 +35,25 @@ let activeChatUser = null;
 
 const grid = document.getElementById('productGrid');
 
+console.log('🚀 Aplikacija početa - čekam Supabase podatke...');
+
 async function fetchFromSupabase(table) {
-    if (!supabaseClient) return null;
-    const { data, error } = await supabaseClient.from(table).select('*');
-    if (error) {
-        console.warn(`Supabase fetch error (${table}):`, error.message);
+    if (!supabaseClient) {
+        console.warn(`⚠️ Supabase nije inicijalizovan - ${table} će biti prazan`);
         return null;
     }
-    return data;
+    try {
+        const { data, error } = await supabaseClient.from(table).select('*');
+        if (error) {
+            console.warn(`❌ Supabase fetch error za tabelu "${table}":`, error.message);
+            return null;
+        }
+        console.log(`✓ Uspješno učitano iz "${table}":`, data?.length || 0, 'stavki');
+        return data;
+    } catch (e) {
+        console.error(`❌ Greška pri povezivanju na Supabase tabelu "${table}":`, e.message);
+        return null;
+    }
 }
 
 function findLocalUserByUsername(username) {
@@ -45,53 +66,64 @@ function findLocalUserByEmail(email) {
 
 async function loadSupabaseData() {
     try {
+        console.log('🔄 Učitavanje podataka iz Supabase...');
+        
+        // OBAVEZNO mora biti Supabase - bez fallback-a na localStorage
+        if (!supabaseClient) {
+            console.error('❌ KRITIČNO: Supabase client nije inicijalizovan!');
+            console.error('   Razlozi: 1) Nema interneta 2) CDN je blokiran 3) Stranica se otvara sa file:// umjesto http://');
+            alert('❌ GREŠKA: Supabase nije dostupan!\n\nMora biti pokrenut HTTP server (http://localhost:8080), ne file://');
+            throw new Error('Supabase nije dostupan');
+        }
+        
         const [productData, userData, reportData, chatData] = await Promise.all([
-            fetchFromSupabase('products'),
-            fetchFromSupabase('users'),
-            fetchFromSupabase('reports'),
+            fetchFromSupabase('artikli'),
+            fetchFromSupabase('javni_korisnici'),
+            fetchFromSupabase('reporti'),
             fetchFromSupabase('chats')
         ]);
 
-        if (productData && productData.length) products = productData;
-        if (userData && userData.length) users = userData;
-        if (reportData && reportData.length) reports = reportData;
-        if (chatData && chatData.length) chats = chatData;
-
-        if (!products.length) products = defaultProducts;
-        if (!users.length) users = defaultUsers;
-
-        const { data: sessionData, error: sessionError } = await (supabaseClient ? supabaseClient.auth.getSession() : Promise.resolve({ data: null, error: null }));
-        if (!sessionError && sessionData?.session?.user?.email) {
-            let profile = null;
-            if (supabaseClient) {
-                const { data: profileData, error: profileError } = await supabaseClient.from('users').select('*').eq('email', sessionData.session.user.email).maybeSingle();
-                if (!profileError && profileData) {
-                    profile = profileData;
-                } else if (profileError) {
-                    console.warn('Supabase profile lookup error:', profileError.message);
-                }
-            }
-            if (!profile) {
-                profile = findLocalUserByEmail(sessionData.session.user.email);
-            }
-            if (profile) {
-                currentUser = profile;
-                sessionStorage.setItem('currentUserActive', JSON.stringify(currentUser));
-            }
+        if (productData && productData.length) {
+            products = productData;
+            console.log('✓ Učitani proizvodi iz Supabase:', productData.length);
+        } else {
+            products = defaultProducts;
+            console.log('⚠️ Supabase je prazan - koristim default proizvode');
+        }
+        
+        if (userData && userData.length) {
+            users = userData;
+            console.log('✓ Učitani korisnici iz Supabase:', userData.length);
+        } else {
+            users = defaultUsers;
+            console.log('⚠️ Supabase je prazan - koristim default korisnike');
+        }
+        
+        if (reportData && reportData.length) {
+            reports = reportData;
+        }
+        if (chatData && chatData.length) {
+            chats = chatData;
         }
 
-        localStorage.setItem('hardware_products', JSON.stringify(products));
-        localStorage.setItem('hardware_users', JSON.stringify(users));
-        localStorage.setItem('hardware_reports', JSON.stringify(reports));
-        localStorage.setItem('hardware_chats', JSON.stringify(chats));
+        // Lokalna autentifikacija
+        const sessionUser = JSON.parse(sessionStorage.getItem('currentUserActive'));
+        if (sessionUser) {
+            currentUser = sessionUser;
+            console.log('✓ Pronađen ulogovani korisnik:', currentUser.username);
+        }
+
+        // ČUVA U SUPABASE DIREKTNO, ne u localStorage
+        console.log('📦 Sve je učitano iz Supabase-a');
     } catch (error) {
-        console.warn('Supabase initialization error:', error);
+        console.error('❌ FATALNA GREŠKA pri učitavanju:', error.message);
+        throw error;
     }
 }
 
 async function getUserByUsername(username) {
     if (!supabaseClient) return findLocalUserByUsername(username);
-    const { data, error } = await supabaseClient.from('users').select('*').eq('username', username).maybeSingle();
+    const { data, error } = await supabaseClient.from('javni_korisnici').select('*').eq('username', username).maybeSingle();
     if (error) {
         console.warn('Supabase getUserByUsername error:', error.message);
         return findLocalUserByUsername(username);
@@ -101,7 +133,7 @@ async function getUserByUsername(username) {
 
 async function getUserByEmail(email) {
     if (!supabaseClient) return findLocalUserByEmail(email);
-    const { data, error } = await supabaseClient.from('users').select('*').eq('email', email).maybeSingle();
+    const { data, error } = await supabaseClient.from('javni_korisnici').select('*').eq('email', email).maybeSingle();
     if (error) {
         console.warn('Supabase getUserByEmail error:', error.message);
         return findLocalUserByEmail(email);
@@ -174,13 +206,12 @@ async function obrisiArtikal(index) {
     if(confirm("Da li ste sigurni da želite obrisati ovaj oglas?")) {
         const artikal = products[index];
         if (artikal?.id && supabaseClient) {
-            const { error } = await supabaseClient.from('products').delete().eq('id', artikal.id);
+            const { error } = await supabaseClient.from('artikli').delete().eq('id', artikal.id);
             if (error) {
                 console.warn('Greška pri brisanju oglasa:', error.message);
             }
         }
         products.splice(index, 1);
-        localStorage.setItem('hardware_products', JSON.stringify(products));
         render(products);
         if(isAdmin) osveziAdminPanel();
     }
@@ -194,11 +225,10 @@ function otvoriDetaljeArtikla(id) {
     // Povećaj broj pregleda
     artikal.views = (artikal.views || 0) + 1;
     if (artikal.id && supabaseClient) {
-        supabaseClient.from('products').update({ views: artikal.views }).eq('id', artikal.id).then(({ error }) => {
+        supabaseClient.from('artikli').update({ views: artikal.views }).eq('id', artikal.id).then(({ error }) => {
             if (error) console.warn('Greška pri ažuriranju pregleda:', error.message);
         });
     }
-    localStorage.setItem('hardware_products', JSON.stringify(products));
 
     // Popuni podatke u modalu
     document.getElementById('detTitle').innerText = artikal.name;
@@ -336,7 +366,6 @@ if(chatForm) {
         }
 
         chats.push(insertedChat || novaPoruka);
-        localStorage.setItem('hardware_chats', JSON.stringify(chats));
         input.value = '';
         prikaziPorukeZaKorisnika(activeChatUser);
     });
@@ -375,7 +404,7 @@ if(sellForm) {
                     let updatedUser = null;
                     let updateError = null;
                     if (supabaseClient) {
-                        const result = await supabaseClient.from('users').update({ coins: currentUser.coins - cijenaIzdvajanja }).eq('username', currentUser.username).select().single();
+                        const result = await supabaseClient.from('javni_korisnici').update({ coins: currentUser.coins - cijenaIzdvajanja }).eq('username', currentUser.username).select().single();
                         updateError = result.error;
                         updatedUser = result.data;
                         if (updateError) {
@@ -388,14 +417,13 @@ if(sellForm) {
                         const uIdx = users.findIndex(u => u.username === currentUser.username);
                         if(uIdx !== -1) users[uIdx] = updatedUser;
                         sessionStorage.setItem('currentUserActive', JSON.stringify(currentUser));
-                        localStorage.setItem('hardware_users', JSON.stringify(users));
+                        // localStorage.setItem('hardware_users', JSON.stringify(users));
                     } else {
                         const uIdx = users.findIndex(u => u.username === currentUser.username);
                         if(uIdx !== -1) {
                             users[uIdx].coins = (users[uIdx].coins || 0) - cijenaIzdvajanja;
                             currentUser = users[uIdx];
                             sessionStorage.setItem('currentUserActive', JSON.stringify(currentUser));
-                            localStorage.setItem('hardware_users', JSON.stringify(users));
                         }
                     }
                 }
@@ -416,7 +444,7 @@ if(sellForm) {
                 let insertedProduct = null;
                 let insertError = null;
                 if (supabaseClient) {
-                    const result = await supabaseClient.from('products').insert([noviArtikal]).select().single();
+                    const result = await supabaseClient.from('artikli').insert([noviArtikal]).select().single();
                     insertError = result.error;
                     insertedProduct = result.data;
                     if (insertError) {
@@ -430,7 +458,6 @@ if(sellForm) {
                     products.unshift({ id: Date.now(), ...noviArtikal });
                 }
 
-                localStorage.setItem('hardware_products', JSON.stringify(products));
                 sellForm.reset();
                 document.getElementById('sellModal').style.display = "none";
                 alert(cijenaIzdvajanja > 0 ? `Uspješno! Oglas je izdvojen i skinuto je ${cijenaIzdvajanja} Coinsa.` : "Vaš oglas je uspješno objavljen besplatno!");
@@ -474,13 +501,9 @@ if(registerForm) {
             return;
         }
 
-        const { data: signUpData, error: signUpError } = await supabaseClient.auth.signUp({
-            email,
-            password: lozinka
-        });
-
-        if (signUpError) {
-            alert("Greška pri registraciji: " + signUpError.message);
+        const existingEmail = await getUserByEmail(email);
+        if (existingEmail) {
+            alert("Email je već registriran.");
             btnRegister.innerText = "Registruj se";
             btnRegister.disabled = false;
             return;
@@ -490,13 +513,14 @@ if(registerForm) {
             name: `${naziv} ${prezime}`,
             username,
             email,
+            password: lozinka,
             coins: 100
         };
 
         let insertedUser = null;
         let insertError = null;
         if (supabaseClient) {
-            const result = await supabaseClient.from('users').insert([noviUserProfil]).select().single();
+            const result = await supabaseClient.from('javni_korisnici').insert([noviUserProfil]).select().single();
             insertError = result.error;
             insertedUser = result.data;
             if (insertError) {
@@ -512,7 +536,6 @@ if(registerForm) {
         }
 
         users.push(insertedUser);
-        localStorage.setItem('hardware_users', JSON.stringify(users));
 
         const templateParams = {
             ime: naziv,
@@ -522,10 +545,11 @@ if(registerForm) {
             datum: document.getElementById('regDob').value
         };
 
-        emailjs.send("service_th1lfel", "template_63qqwfw", templateParams)
-            .catch(function(error) {
-                console.warn("EmailJS error:", error);
-            });
+        try {
+            emailjs.send("service_th1lfel", "template_63qqwfw", templateParams);
+        } catch(error) {
+            console.warn("EmailJS error:", error);
+        }
 
         registerForm.reset();
         document.getElementById('authModal').style.display = "none";
@@ -577,29 +601,23 @@ if(loginForm) {
             return;
         }
 
-        let email = loginValue;
-        if (!loginValue.includes('@')) {
-            const korisnik = await getUserByUsername(loginValue);
-            if (!korisnik) {
-                alert("Korisničko ime ne postoji.");
-                return;
-            }
-            email = korisnik.email;
+        let korisnickiProfil = null;
+        
+        // Traži po korisničkom imenu ili emailu
+        if (loginValue.includes('@')) {
+            korisnickiProfil = await getUserByEmail(loginValue);
+        } else {
+            korisnickiProfil = await getUserByUsername(loginValue);
         }
 
-        const { data: signInData, error: signInError } = await supabaseClient.auth.signInWithPassword({
-            email,
-            password
-        });
-
-        if (signInError) {
-            alert("Pogrešna prijava: " + signInError.message);
+        if (!korisnickiProfil) {
+            alert("Korisničko ime/email ne postoji.");
             return;
         }
 
-        const korisnickiProfil = await getUserByEmail(email);
-        if (!korisnickiProfil) {
-            alert("Korisnik nije pronađen u sistemu.");
+        // Provjeri lozinku
+        if (korisnickiProfil.password !== password) {
+            alert("Pogrešna lozinka.");
             return;
         }
 
@@ -692,9 +710,6 @@ const logoutBtn = document.getElementById('logoutBtn');
 if(logoutBtn) {
     logoutBtn.onclick = async () => {
         isAdmin = false; currentUser = null;
-        if (supabaseClient) {
-            await supabaseClient.auth.signOut();
-        }
         sessionStorage.removeItem('isAdminActive'); sessionStorage.removeItem('currentUserActive');
         alert("Odjavljeni ste."); proveriAdminInterfejs(); render(products);
     };
@@ -716,7 +731,7 @@ async function promijeniCoinse(index, iznos) {
     let updatedUser = null;
     let updateError = null;
     if (supabaseClient) {
-        const result = await supabaseClient.from('users').update({ coins: noviIznos }).eq('username', users[index].username).select().single();
+        const result = await supabaseClient.from('javni_korisnici').update({ coins: noviIznos }).eq('username', users[index].username).select().single();
         updateError = result.error;
         updatedUser = result.data;
         if (updateError) {
@@ -725,7 +740,7 @@ async function promijeniCoinse(index, iznos) {
     }
     if (!updatedUser) {
         users[index].coins = noviIznos;
-        localStorage.setItem('hardware_users', JSON.stringify(users));
+        // localStorage.setItem('hardware_users', JSON.stringify(users));
         osveziAdminPanel();
         if(currentUser && currentUser.username === users[index].username) {
             currentUser.coins = users[index].coins;
@@ -735,7 +750,6 @@ async function promijeniCoinse(index, iznos) {
         return;
     }
     users[index] = updatedUser;
-    localStorage.setItem('hardware_users', JSON.stringify(users));
     osveziAdminPanel();
     if(currentUser && currentUser.username === users[index].username) {
         currentUser.coins = users[index].coins;
@@ -756,7 +770,7 @@ if(reportForm) {
         let insertedReport = null;
         let reportError = null;
         if (supabaseClient) {
-            const result = await supabaseClient.from('reports').insert([noviReport]).select().single();
+            const result = await supabaseClient.from('reporti').insert([noviReport]).select().single();
             insertedReport = result.data;
             reportError = result.error;
             if (reportError) {
@@ -764,7 +778,6 @@ if(reportForm) {
             }
         }
         reports.push(insertedReport || noviReport);
-        localStorage.setItem('hardware_reports', JSON.stringify(reports));
         alert("Poslano podršci!"); reportForm.reset(); document.getElementById('reportModal').style.display = 'none';
     });
 }
@@ -818,7 +831,19 @@ window.onclick = (e) => {
 }
 
 window.onload = async () => {
+    console.log('📱 Stranica učitana - pokretanje inicijalizacije...');
+    
+    // Čekaj malo da se Supabase script učita
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
     await loadSupabaseData();
     proveriAdminInterfejs();
     render(products);
+    
+    console.log('✅ Inicijalizacija završena');
+    console.log('📊 Stanje aplikacije:');
+    console.log('   Proizvodi:', products.length);
+    console.log('   Korisnici:', users.length);
+    console.log('   Trenutni korisnik:', currentUser?.username || 'Niko');
+    console.log('   Admin mod:', isAdmin);
 };
