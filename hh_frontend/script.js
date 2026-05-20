@@ -518,7 +518,7 @@ function osveziAdminPanel() {
 }
 
 async function promijeniCoinseNaServeru(id, trenutniCoins, iznos) {
-    let noviIznos = trenutniCoins + iznos; // Popravljen tipfeler ovdje!
+    let noviIznos = trenutniCoins + iznos; // Ovdje je bila greška i tipfeler (trenchesCoins)! Sada je popravljeno.
     if(noviIznos < 0) noviIznos = 0;
     
     const { error } = await _supabase.from('javni_korisnici').update({ coins: noviIznos }).eq('id', id);

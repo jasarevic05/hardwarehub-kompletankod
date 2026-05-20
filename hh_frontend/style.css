@@ -19,7 +19,7 @@ body {
     padding: 0;
 }
 
-/* Navbar - Savršeno raspoređen na 3 kolone (Lijevo, Sredina, Desno) */
+/* Navbar raspoređen pomoću Grida na 3 jednaka bloka */
 .navbar {
     display: grid;
     grid-template-columns: 1fr auto 1fr;
@@ -41,7 +41,7 @@ body {
 }
 .logo span { color: var(--accent); }
 
-/* Precizno centrirani Search & Filter */
+/* Centrirani Search & Filter */
 .search-wrapper {
     display: flex;
     gap: 10px;
@@ -74,7 +74,7 @@ body {
     font-weight: 600;
 }
 
-/* Sve akcije poravnate skroz udesno */
+/* Desne akcije poravnate na kraj desne strane */
 .nav-actions { 
     display: flex; 
     align-items: center; 
@@ -182,7 +182,7 @@ body {
 .card p.specs { font-size: 0.85rem; color: #94a3b8; margin: 10px 0 15px 0; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .price { color: var(--accent); font-weight: 800; font-size: 1.2rem; margin: 0; }
 
-/* Admin stilovi */
+/* Admin panel stilovi */
 .admin-section h3 {
     margin-top: 0; margin-bottom: 15px; font-size: 1.3rem; border-left: 4px solid var(--accent); padding-left: 10px;
 }
