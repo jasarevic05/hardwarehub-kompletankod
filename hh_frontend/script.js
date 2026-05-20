@@ -2,6 +2,7 @@
 const SUPABASE_URL = "https://gvwmkqqhpdklikkbciol.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2d21rcXFocGRrbGlra2JjaW9sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxODg2OTEsImV4cCI6MjA5NDc2NDY5MX0.X5URdWNvIez_jiuT4uyhBtTAi9Vcr2SDf9KyKE5YdE0";
 
+// === GLOBALNE VARIJABLE I INICIJALIZACIJA ===
 
 
 // Inicijalizacija Supabase klijenta

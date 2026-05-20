@@ -9,7 +9,7 @@
     --success: #10b981;
     --featured: #eab308;
 }
-
+/* Globalni stilovi */
 body {
     background-color: var(--bg);
     color: var(--text);
