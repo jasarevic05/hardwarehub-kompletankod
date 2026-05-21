@@ -26,7 +26,7 @@ function persistAdminState() {
     localStorage.setItem(localReportKey, JSON.stringify(reports));
     localStorage.setItem(localLogKey, JSON.stringify(logs));
 }
-
+//test
 async function fetchFromSupabase(table) {
     if (!supabaseClient) return null;
     const { data, error } = await supabaseClient.from(table).select('*');

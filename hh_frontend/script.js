@@ -19,7 +19,7 @@ if (!supabaseClient) {
     console.error("❌ KRITIČNO: Supabase klijent nije inicijalizovan! Provjerite CDN skriptu.");
 }
 
-// Globalna stanja aplikacije - nema više localStorage-a!
+// Globalna stanja aplikacije
 let products = [];
 let users = [];
 let reports = [];
@@ -32,7 +32,6 @@ const grid = document.getElementById('productGrid');
 
 console.log('🚀 Aplikacija pokrenuta - učitavam podatke iz baze podataka...');
 
-// Pomoćne funkcije za pretragu korisnika u lokalnom nizu (koji je napunjen iz baze)
 function findLocalUserByEmail(email) {
     return users.find(u => u.email === email) || null;
 }
@@ -51,7 +50,6 @@ async function fetchFromSupabase(table) {
     return data;
 }
 
-// Glavna sinhronizacija - uvijek primarno vuče podatke sa servera
 async function loadSupabaseData() {
     try {
         console.log('🔄 Sinhronizacija sa Supabase bazom u toku...');
@@ -63,7 +61,7 @@ async function loadSupabaseData() {
         
         const [productData, userData, reportData, chatData] = await Promise.all([
             fetchFromSupabase('products'),
-            fetchFromSupabase('users'),
+            fetchFromSupabase('javni_korisnici'),
             fetchFromSupabase('reports'),
             fetchFromSupabase('chats')
         ]);
@@ -73,14 +71,12 @@ async function loadSupabaseData() {
         reports = reportData || [];
         chats = chatData || [];
 
-        // Ako ste ulogovani, osvežite podatke o trenutnom korisniku direktno iz baze
         if (currentUser) {
             const svjeziProfil = users.find(u => u.username === currentUser.username);
             if (svjeziProfil) {
                 currentUser = {
                     ...svjeziProfil,
-                    hhcoins: svjeziProfil.hhcoins ?? svjeziProfil.coins ?? 0,
-                    coins: svjeziProfil.hhcoins ?? svjeziProfil.coins ?? 0,
+                    hhcoins: svjeziProfil.hhcoins ?? 0,
                     role: svjeziProfil.role || 'basic'
                 };
                 sessionStorage.setItem('currentUserActive', JSON.stringify(currentUser));
@@ -95,14 +91,14 @@ async function loadSupabaseData() {
 
 async function getUserByUsername(username) {
     if (!supabaseClient) return findLocalUserByUsername(username);
-    const { data, error } = await supabaseClient.from('users').select('*').eq('username', username).maybeSingle();
+    const { data, error } = await supabaseClient.from('javni_korisnici').select('*').eq('username', username).maybeSingle();
     if (error) return findLocalUserByUsername(username);
     return data || findLocalUserByUsername(username);
 }
 
 async function getUserByEmail(email) {
     if (!supabaseClient) return findLocalUserByEmail(email);
-    const { data, error } = await supabaseClient.from('users').select('*').eq('email', email).maybeSingle();
+    const { data, error } = await supabaseClient.from('javni_korisnici').select('*').eq('email', email).maybeSingle();
     if (error) return findLocalUserByEmail(email);
     return data || findLocalUserByEmail(email);
 }
@@ -252,7 +248,7 @@ async function otvoriDetaljeArtikla(id) {
 function otvoriProfilIKomunikaciju(saKorisnikom = null) {
     if(!currentUser) return;
 
-    const coinsPrikaz = currentUser.hhcoins ?? currentUser.coins ?? 0;
+    const coinsPrikaz = currentUser.hhcoins ?? 0;
     document.getElementById('profName').innerText = currentUser.name;
     document.getElementById('profUsername').innerText = `@${currentUser.username}`;
     document.getElementById('profEmail').innerText = currentUser.email;
@@ -314,7 +310,7 @@ async function purchaseMembership(level) {
     const cost = prices[level];
     if (!currentUser || !cost) return;
     
-    let trenutniSalda = currentUser.hhcoins ?? currentUser.coins ?? 0;
+    let trenutniSalda = currentUser.hhcoins ?? 0;
     if (trenutniSalda < cost) {
         alert('Nemate dovoljno HHCoins za ovu nadogradnju.');
         return;
@@ -322,7 +318,7 @@ async function purchaseMembership(level) {
     trenutniSalda -= cost;
 
     if (supabaseClient) {
-        await supabaseClient.from('users').update({ hhcoins: trenutniSalda, coins: trenutniSalda, role: level }).eq('username', currentUser.username);
+        await supabaseClient.from('javni_korisnici').update({ hhcoins: trenutniSalda, role: level }).eq('username', currentUser.username);
     }
     
     await loadSupabaseData();
@@ -416,7 +412,7 @@ if(chatForm) {
     });
 }
 
-// --- 5. LOGIKA ZA OBJAVU OGLASA (Pravilno slanje na Supabase) ---
+// --- 5. LOGIKA ZA OBJAVU OGLASA ---
 const sellForm = document.getElementById('sellForm');
 if(sellForm) {
     sellForm.addEventListener('submit', async function(event) {
@@ -440,7 +436,7 @@ if(sellForm) {
             return;
         }
 
-        let trenutniSaldo = currentUser.hhcoins ?? currentUser.coins ?? 0;
+        let trenutniSaldo = currentUser.hhcoins ?? 0;
         if(trenutniSaldo < cijenaIzdvajanja) {
             alert(`Nemate dovoljno HHCoins! Potrebno vam je ${cijenaIzdvajanja} HHCoins.`);
             return;
@@ -471,11 +467,10 @@ if(sellForm) {
         try {
             const Base64Slike = await readFilesAsDataUrls(fajlovi);
 
-            // Ako se plaća izdvajanje, prvo skini coinse korisniku na bazi
             if(cijenaIzdvajanja > 0) {
                 trenutniSaldo -= cijenaIzdvajanja;
                 if (supabaseClient) {
-                    await supabaseClient.from('users').update({ hhcoins: trenutniSaldo, coins: trenutniSaldo }).eq('username', currentUser.username);
+                    await supabaseClient.from('javni_korisnici').update({ hhcoins: trenutniSaldo }).eq('username', currentUser.username);
                 }
             }
 
@@ -501,7 +496,6 @@ if(sellForm) {
             document.getElementById('sellModal').style.display = "none";
             alert(cijenaIzdvajanja > 0 ? `Uspješno! Oglas je izdvojen (-${cijenaIzdvajanja} Coinsa).` : "Vaš oglas je uspješno objavljen na server!");
             
-            // Ponovo povuci svježe podatke sa servera da se odmah prikaže i tebi i kolegi
             await loadSupabaseData();
             proveriAdminInterfejs();
             render(products);
@@ -518,8 +512,11 @@ if(sellForm) {
     });
 }
 
-// --- 6. REGISTRACIJA I EMAILJS ---
-if(typeof emailjs !== 'undefined') emailjs.init("ulfQJccZt4N0kFq78"); 
+// --- 6. REGISTRACIJA I SLANJE EMAILJS ---
+if(typeof emailjs !== 'undefined') {
+    emailjs.init("ulfQJccZt4N0kFq78"); 
+}
+
 const registerForm = document.getElementById('registerForm');
 const btnRegister = document.getElementById('btnRegister');
 
@@ -563,13 +560,12 @@ if(registerForm) {
             username,
             email,
             password: lozinka,
-            coins: 100,
             hhcoins: 100,
             role: 'basic'
         };
 
         if (supabaseClient) {
-            const { error } = await supabaseClient.from('users').insert([noviUserProfil]);
+            const { error } = await supabaseClient.from('javni_korisnici').insert([noviUserProfil]);
             if (error) {
                 alert("Greška pri registraciji: " + error.message);
                 btnRegister.innerText = "Registruj se";
@@ -647,8 +643,7 @@ if(loginForm) {
 
         currentUser = {
             ...korisnickiProfil,
-            hhcoins: korisnickiProfil.hhcoins ?? korisnickiProfil.coins ?? 0,
-            coins: korisnickiProfil.hhcoins ?? korisnickiProfil.coins ?? 0,
+            hhcoins: korisnickiProfil.hhcoins ?? 0,
             role: korisnickiProfil.role || 'basic'
         };
         sessionStorage.setItem('currentUserActive', JSON.stringify(currentUser));
@@ -671,7 +666,7 @@ function proveriAdminInterfejs() {
     const repUserInput = document.getElementById('repUser');
 
     if (currentUser) {
-        const saldoBadge = currentUser.hhcoins ?? currentUser.coins ?? 0;
+        const saldoBadge = currentUser.hhcoins ?? 0;
         if(userBadge) {
             userBadge.style.display = 'block';
             userBadge.innerHTML = `👤 @${currentUser.username} (${saldoBadge} HHCoins)`;
@@ -708,17 +703,6 @@ if(openProfileBtnElement) {
     openProfileBtnElement.onclick = () => otvoriProfilIKomunikaciju();
 }
 
-const heroSellBtn = document.getElementById('heroSellBtn');
-if(heroSellBtn) {
-    heroSellBtn.onclick = () => {
-        if(!currentUser) {
-            document.getElementById('authModal').style.display = 'block';
-        } else {
-            document.getElementById('sellModal').style.display = 'block';
-        }
-    };
-}
-
 const saveProfileBtn = document.getElementById('saveProfileBtn');
 if(saveProfileBtn) {
     saveProfileBtn.onclick = async () => {
@@ -730,7 +714,7 @@ if(saveProfileBtn) {
         }
 
         if (supabaseClient) {
-            await supabaseClient.from('users').update({ name: newName, email: newEmail }).eq('username', currentUser.username);
+            await supabaseClient.from('javni_korisnici').update({ name: newName, email: newEmail }).eq('username', currentUser.username);
         }
         
         await loadSupabaseData();
@@ -844,10 +828,8 @@ window.onclick = (e) => {
 // Inicijalizacija aplikacije na loadu
 window.addEventListener('load', async () => {
     console.log('📱 Stranica učitana - pokretanje sinhronizacije...');
-    
     await loadSupabaseData();
     proveriAdminInterfejs();
     render(products);
-    
-    console.log('✅ Sinhronizacija i prikaz uspješno završeni!');
+    console.log('✅ Sinhronizacija i prikaz uspješno završeni.');
 });
