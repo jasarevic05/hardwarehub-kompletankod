@@ -5,7 +5,11 @@ const adminPasswords = {
 const SUPABASE_URL = "https://gvwmkqqhpdklikkbciol.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2d21rcXFocGRrbGlra2JjaW9sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxODg2OTEsImV4cCI6MjA5NDc2NDY5MX0.X5URdWNvIez_jiuT4uyhBtTAi9Vcr2SDf9KyKE5YdE0";
 const supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-if (!supabaseClient) console.error("Supabase client could not be created. Check if the Supabase script loaded correctly.");
+
+if (!supabaseClient) {
+    console.error("❌ Admin greška: Supabase klijent nije inicijalizovan! Provjerite CDN skriptu.");
+}
+
 const localProductKey = 'hardware_products';
 const localUserKey = 'hardware_users';
 const localReportKey = 'hardware_reports';
@@ -17,320 +21,283 @@ let products = JSON.parse(localStorage.getItem(localProductKey)) || [];
 let users = JSON.parse(localStorage.getItem(localUserKey)) || [];
 let reports = JSON.parse(localStorage.getItem(localReportKey)) || [];
 let logs = JSON.parse(localStorage.getItem(localLogKey)) || [];
-let isAdminPageActive = sessionStorage.getItem(adminSessionKey) === 'true';
+
+// Čišćenje niza odmah u startu od potencijalnih null elemenata u kešu
+users = users.filter(u => u !== null && u !== undefined);
+products = products.filter(p => p !== null && p !== undefined);
+
 let currentAdmin = null;
+let isAdminPageActive = sessionStorage.getItem(adminSessionKey) === 'true';
 
-function persistAdminState() {
-    localStorage.setItem(localProductKey, JSON.stringify(products));
-    localStorage.setItem(localUserKey, JSON.stringify(users));
-    localStorage.setItem(localReportKey, JSON.stringify(reports));
-    localStorage.setItem(localLogKey, JSON.stringify(logs));
-}
-//test
-async function fetchFromSupabase(table) {
-    if (!supabaseClient) return null;
-    const { data, error } = await supabaseClient.from(table).select('*');
-    if (error) {
-        console.warn(`Supabase fetch error (${table}):`, error.message);
-        return null;
-    }
-    return data;
-}
-
-async function ensureOwnerAdminUsers() {
+async function fetchAllData() {
     if (!supabaseClient) return;
-    const missing = [];
-    if (!users.some(u => u.username === 'owner')) {
-        missing.push({ name: 'Glavni Vlasnik', username: 'owner', email: 'owner@hardwarehub.ba', hhcoins: 1000, role: 'owner' });
-    }
-    if (!users.some(u => u.username === 'admin')) {
-        missing.push({ name: 'Administrator', username: 'admin', email: 'admin@hardwarehub.ba', hhcoins: 500, role: 'admin' });
-    }
-    if (missing.length) {
-        const { data, error } = await supabaseClient.from('users').upsert(missing, { onConflict: 'username' }).select();
-        if (error) {
-            console.warn('Supabase upsert owner/admin error:', error.message);
-        } else if (data) {
-            data.forEach(user => {
-                if (!users.some(u => u.username === user.username)) {
-                    users.push({ ...user, hhcoins: user.hhcoins ?? user.coins ?? 0, role: user.role || 'basic' });
-                }
-            });
-        }
-    }
-}
-
-function createLog(action, detail) {
-    const entry = {
-        id: Date.now(),
-        timestamp: new Date().toLocaleString('bs-BA'),
-        action,
-        detail
-    };
-    logs.unshift(entry);
-    persistAdminState();
-    renderLogs();
-}
-
-function loadFallbackData() {
-    if (!users.length) {
-        users = [
-            { name: "Glavni Vlasnik", username: "owner", email: "owner@hardwarehub.ba", hhcoins: 1000, role: 'owner' },
-            { name: "Administrator", username: "admin", email: "admin@hardwarehub.ba", hhcoins: 500, role: 'admin' },
-            { name: "Amar Softić", username: "pro_gamer", email: "amar@test.com", password: "123", hhcoins: 250, role: 'basic' },
-            { name: "Emina Spahić", username: "hardware_fan", email: "emina@test.com", password: "123", hhcoins: 120, role: 'basic' }
-        ];
-    }
-    const ensureAdminUser = (user) => {
-        if (!users.some(u => u.username === user.username)) {
-            users.push(user);
-        }
-    };
-    ensureAdminUser({ name: "Glavni Vlasnik", username: "owner", email: "owner@hardwarehub.ba", hhcoins: 1000, role: 'owner' });
-    ensureAdminUser({ name: "Administrator", username: "admin", email: "admin@hardwarehub.ba", hhcoins: 500, role: 'admin' });
-    if (!products.length) {
-        products = [
-            { id: 1, name: "NVIDIA RTX 4070 Ti", price: 1650, category: "GPU", brand: "NVIDIA", condition: "Novo", owner: "pro_gamer", specs: "12GB GDDR6X, vrhunska kartica za 1440p i 4K gaming.", images: ["https://images.unsplash.com/photo-1591488320449-011701bb6704"], views: 42, promote: "main" },
-            { id: 2, name: "Ryzen 7 7800X3D", price: 850, category: "CPU", brand: "AMD", condition: "Novo", owner: "hardware_fan", specs: "8 jezgri, 16 threadova, najbolji procesor.", images: ["https://images.unsplash.com/photo-1591405351990-4726e331f141"], views: 19, promote: "none" }
-        ];
-    }
-}
-
-async function loadAdminData() {
     try {
-        const [productData, userData, reportData] = await Promise.all([
-            fetchFromSupabase('products'),
-            fetchFromSupabase('users'),
-            fetchFromSupabase('reports')
+        const [prodRes, userRes, repRes] = await Promise.all([
+            supabaseClient.from('products').select('*'),
+            supabaseClient.from('javni_korisnici').select('*'),
+            supabaseClient.from('reports').select('*')
         ]);
 
-        if (productData && productData.length) products = productData;
-        if (userData && userData.length) {
-            users = userData.map(user => ({
-                ...user,
-                hhcoins: user.hhcoins ?? user.coins ?? 0,
-                role: user.role || 'basic'
-            }));
-        }
-        if (reportData && reportData.length) reports = reportData;
+        if (prodRes.error) console.error("Greška pri učitavanju proizvoda:", prodRes.error.message);
+        if (userRes.error) console.error("Greška pri učitavanju korisnika:", userRes.error.message);
+        if (repRes.error) console.error("Greška pri učitavanju prijava:", repRes.error.message);
 
-        if (!users.length) loadFallbackData();
-        await ensureOwnerAdminUsers();
-        if (!products.length) loadFallbackData();
-        if (!reports.length) reports = reports || [];
+        products = (prodRes.data || []).filter(p => p !== null);
+        users = (userRes.data || []).filter(u => u !== null);
+        reports = (repRes.data || []).filter(r => r !== null);
 
-        persistAdminState();
-    } catch (error) {
-        console.warn('Greška pri učitavanju admin podataka:', error.message);
-        loadFallbackData();
-        persistAdminState();
+        localStorage.setItem(localProductKey, JSON.stringify(products));
+        localStorage.setItem(localUserKey, JSON.stringify(users));
+        localStorage.setItem(localReportKey, JSON.stringify(reports));
+
+        console.log("🔄 Podaci uspješno povučeni iz tabele 'javni_korisnici'.");
+    } catch (err) {
+        console.error("Sustavni problem sa povlačenjem podataka:", err);
     }
 }
 
 function showLogin() {
-    document.getElementById('adminLoginSection').style.display = 'block';
-    document.getElementById('adminDashboardSection').style.display = 'none';
-    document.getElementById('adminLogout').style.display = 'none';
+    const loginSec = document.getElementById('adminLoginSection');
+    const dashSec = document.getElementById('adminDashboardSection');
+    const logoutBtn = document.getElementById('adminLogout');
+
+    if (loginSec) loginSec.style.display = 'block';
+    if (dashSec) dashSec.style.display = 'none';
+    if (logoutBtn) logoutBtn.style.display = 'none';
 }
 
 function showDashboard() {
-    loadFallbackData();
-    document.getElementById('adminLoginSection').style.display = 'none';
-    document.getElementById('adminDashboardSection').style.display = 'block';
-    document.getElementById('adminLogout').style.display = 'inline-flex';
-    document.getElementById('adminWelcome').innerText = currentAdmin ? `Prijavljen kao ${currentAdmin.name} (${currentAdmin.role})` : '';
-    renderAdminSummary();
-    renderAdminUsers();
+    const loginSec = document.getElementById('adminLoginSection');
+    const dashSec = document.getElementById('adminDashboardSection');
+    const logoutBtn = document.getElementById('adminLogout');
+
+    if (loginSec) loginSec.style.display = 'none';
+    if (dashSec) dashSec.style.display = 'block';
+    if (logoutBtn) logoutBtn.style.display = 'block';
+    
+    // Ispisivanje dobrodošlice ako element postoji
+    const welcomeText = document.getElementById('adminWelcome');
+    if (welcomeText && currentAdmin) {
+        welcomeText.innerText = `Dobrodošli nazad, @${currentAdmin.username} (${currentAdmin.role.toUpperCase()})`;
+    }
+
+    renderStats();
+    renderUsersTable();
     renderReports();
     renderLogs();
 }
 
-function renderAdminSummary() {
-    document.getElementById('statUsers').innerText = users.length;
-    document.getElementById('statAds').innerText = products.length;
-    document.getElementById('statReports').innerText = reports.length;
+// POPRAVLJENO I SIGURNO: Koristi tačne ID-eve iz tvog admin.html
+function renderStats() {
+    const pStat = document.getElementById('statAds');       
+    const uStat = document.getElementById('statUsers');     
+    const rStat = document.getElementById('statReports');   
+
+    if (pStat) pStat.innerText = products.length;
+    if (uStat) uStat.innerText = users.length;
+    if (rStat) rStat.innerText = reports.length;
 }
 
-function renderAdminUsers() {
-    const body = document.getElementById('adminUsersTableBody');
-    if (!body) return;
-    body.innerHTML = users.map((user, index) => {
-        const adCount = products.filter(p => p.owner === user.username).length;
-        const roleAction = currentAdmin && currentAdmin.role === 'owner' && user.username !== currentAdmin.username ?
-            `<button class="btn-coin" onclick="toggleAdminRole(${index})">${user.role === 'admin' ? 'Ukloni admin' : 'Postavi admin'}</button>` : '';
-        return `<tr>
-            <td>${user.name}</td>
-            <td>@${user.username}</td>
-            <td>${user.email}</td>
-            <td>${user.role || 'basic'}</td>
-            <td style="color:#eab308; font-weight:800;">💰 ${user.hhcoins || 0}</td>
-            <td style="text-align:center;">${adCount}</td>
-            <td>
-                <button class="btn-coin plus" onclick="openAdjustCoins(${index})">HHCoins</button>
-                <button class="btn-coin" onclick="openSetRole(${index})">Rola</button>
-                ${roleAction}
-                <button class="btn-coin minus" onclick="deleteUser(${index})">Obriši</button>
-            </td>
-        </tr>`;
+function renderUsersTable() {
+    const tbody = document.getElementById('adminUsersTableBody');
+    if (!tbody) return;
+    
+    if (users.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--text-dim);">Nema registriranih korisnika u tabeli 'javni_korisnici'.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = users.map(u => {
+        if (!u) return '';
+        const brojOglasa = products.filter(p => p && p.owner === u.username).length;
+        const saldoCoins = u.hhcoins ?? 0;
+        return `
+            <tr>
+                <td><strong>${u.name || 'Nema imena'}</strong></td>
+                <td style="color:var(--accent);">@${u.username || 'nepoznato'}</td>
+                <td>${u.email || 'Nema emaila'}</td>
+                <td><span class="badge-condition" style="background:${u.role !== 'basic' ? '#a855f7' : 'rgba(255,255,255,0.05)'}">${u.role ? u.role.toUpperCase() : 'BASIC'}</span></td>
+                <td><b style="color:#facc15;">${saldoCoins} HHC</b></td>
+                <td>${brojOglasa}</td>
+                <td>
+                    <button class="btn-coin plus" onclick="modifikujCoins('${u.username}', 50)">+50</button>
+                    <button class="btn-coin minus" onclick="modifikujCoins('${u.username}', -50)">-50</button>
+                    <button class="btn-action btn-danger" style="padding:4px 8px; font-size:0.75rem; margin-left:5px;" onclick="obrisiKorisnika('${u.username}')">Ukloni</button>
+                </td>
+            </tr>
+        `;
     }).join('');
+}
+
+async function modifikujCoins(username, iznos) {
+    const korisnik = users.find(u => u && u.username === username);
+    if (!korisnik) return;
+    
+    let trenutniCoins = korisnik.hhcoins ?? 0;
+    let noviSaldo = Math.max(0, trenutniCoins + iznos);
+
+    if (supabaseClient) {
+        const { error } = await supabaseClient
+            .from('javni_korisnici')
+            .update({ hhcoins: noviSaldo })
+            .eq('username', username);
+            
+        if (error) {
+            alert("Greška pri ažuriranju HHCoinsa na serveru: " + error.message);
+            return;
+        }
+    }
+
+    createLog('Izmjena stanja', `Izmijenjeno stanje za @${username} (${iznos > 0 ? '+' : ''}${iznos} HHCoins)`);
+    await fetchAllData();
+    showDashboard();
+}
+
+async function obrisiKorisnika(username) {
+    if (!confirm(`Da li ste sigurni da želite trajno obrisati korisnika @${username} i sve njegove oglase?`)) return;
+    
+    if (supabaseClient) {
+        await supabaseClient.from('products').delete().eq('owner', username);
+        const { error } = await supabaseClient.from('javni_korisnici').delete().eq('username', username);
+        
+        if (error) {
+            alert("Greška pri brisanju korisnika: " + error.message);
+            return;
+        }
+    }
+
+    createLog('Uklanjanje korisnika', `Korisnik @${username} je trajno obrisan.`);
+    await fetchAllData();
+    showDashboard();
 }
 
 function renderReports() {
     const container = document.getElementById('adminReportsContainer');
     if (!container) return;
-    if (!reports.length) {
-        container.innerHTML = '<p style="color:var(--text-dim);">Nema novih prijava.</p>';
+    
+    if (reports.length === 0) {
+        container.innerHTML = `<p style="color:var(--text-dim); text-align:center; padding:20px;">Inbox prijava je prazan.</p>`;
         return;
     }
-    container.innerHTML = reports.map(rep => `
-        <div class="report-card">
-            <strong>${rep.subject}</strong>
-            <p>${rep.message}</p>
-            <small>@${rep.username}</small>
+
+    container.innerHTML = reports.map(r => `
+        <div class="report-item" style="border-left: 3px solid #ef4444; background: rgba(239,68,68,0.02); padding: 12px; margin-bottom: 10px; border-radius: 4px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+                <span style="color:var(--accent); font-weight:600;">@${r.username}</span>
+                <small style="color:var(--text-dim); font-size:0.75rem;">${r.created_at ? new Date(r.created_at).toLocaleDateString() : ''}</small>
+            </div>
+            <h4 style="margin:5px 0; color:white;">${r.subject}</h4>
+            <p style="margin:0; font-size:0.85rem; color:var(--text-dim); line-height:1.4;">${r.message}</p>
+            <button class="btn-action secondary" style="padding:3px 8px; font-size:0.7rem; margin-top:8px;" onclick="ZatvoriPrijavu(${r.id})">Označi kao riješeno</button>
         </div>
     `).join('');
+}
+
+async function ZatvoriPrijavu(id) {
+    if (supabaseClient) {
+        const { error } = await supabaseClient.from('reports').delete().eq('id', id);
+        if (error) {
+            alert("Greška pri zatvaranju prijave: " + error.message);
+            return;
+        }
+    }
+    createLog('Prijava riješena', `Prijava ID: ${id} je arhivirana.`);
+    await fetchAllData();
+    showDashboard();
+}
+
+function createLog(tip, detalji) {
+    const noviLog = {
+        id: Date.now(),
+        time: new Date().toLocaleTimeString(),
+        type: tip,
+        details: detalji
+    };
+    logs.unshift(noviLog);
+    if (logs.length > 30) logs.pop();
+    localStorage.setItem(localLogKey, JSON.stringify(logs));
 }
 
 function renderLogs() {
     const container = document.getElementById('adminLogsContainer');
     if (!container) return;
-    if (!logs.length) {
-        container.innerHTML = '<p style="color:var(--text-dim);">Nema administrativnih zapisa.</p>';
+    
+    if (logs.length === 0) {
+        container.innerHTML = `<p style="color:var(--text-dim); text-align:center; padding:20px;">Nema zabilježenih aktivnosti.</p>`;
         return;
     }
-    container.innerHTML = logs.map(log => `
-        <div class="report-card">
-            <strong>${log.action}</strong>
-            <p>${log.detail}</p>
-            <small>${log.timestamp}</small>
+
+    container.innerHTML = logs.map(l => `
+        <div style="font-size:0.8rem; padding:6px 0; border-bottom:1px solid rgba(255,255,255,0.03);">
+            <span style="color:var(--text-dim); font-family:monospace;">[${l.time}]</span> 
+            <b style="color:var(--accent);">${l.type}:</b> 
+            <span style="color:#e2e8f0;">${l.details}</span>
         </div>
     `).join('');
 }
 
-async function openAdjustCoins(index) {
-    const amount = prompt('Unesite broj HHCoins (+/-) za korisnika:');
-    const parsed = parseInt(amount, 10);
-    if (isNaN(parsed)) return;
-    users[index].hhcoins = (users[index].hhcoins || 0) + parsed;
-    if (supabaseClient) {
-        const { error } = await supabaseClient.from('users').update({ hhcoins: users[index].hhcoins }).eq('username', users[index].username);
-        if (error) console.warn('Greška pri ažuriranju HHCoins-a u Supabase:', error.message);
-    }
-    persistAdminState();
-    createLog('Izmjena HHCoins-a', `${currentAdmin ? '@' + currentAdmin.username : 'Sistem'} je promijenio HHCoins korisniku @${users[index].username} za ${parsed}`);
-    renderAdminUsers();
-}
+window.addEventListener('load', async () => {
+    console.log('⚙️ Pokretanje Admin Panela...');
+    await fetchAllData();
 
-async function openSetRole(index) {
-    const role = prompt('Unesite novu rolu (basic, silver, premium):', users[index].role || 'basic');
-    if (!role || !['basic', 'silver', 'premium'].includes(role.toLowerCase())) return;
-    users[index].role = role.toLowerCase();
-    if (supabaseClient) {
-        const { error } = await supabaseClient.from('users').update({ role: users[index].role }).eq('username', users[index].username);
-        if (error) console.warn('Greška pri ažuriranju role u Supabase:', error.message);
-    }
-    persistAdminState();
-    createLog('Promjena role', `${currentAdmin ? '@' + currentAdmin.username : 'Sistem'} je korisniku @${users[index].username} postavio rolu ${role}`);
-    renderAdminUsers();
-}
-
-async function toggleAdminRole(index) {
-    if (!currentAdmin || currentAdmin.role !== 'owner') {
-        return alert('Samo owner može postaviti ili ukloniti admina.');
-    }
-    const target = users[index];
-    if (target.username === currentAdmin.username) return;
-    target.role = target.role === 'admin' ? 'basic' : 'admin';
-    if (supabaseClient) {
-        const { error } = await supabaseClient.from('users').update({ role: target.role }).eq('username', target.username);
-        if (error) console.warn('Greška pri promjeni admin role u Supabase:', error.message);
-    }
-    persistAdminState();
-    createLog('Promjena admin role', `@${currentAdmin.username} je ${target.role === 'admin' ? 'postavio' : 'uklonio'} @${target.username} kao admin`);
-    renderAdminUsers();
-}
-
-async function deleteUser(index) {
-    if (!confirm('Da li ste sigurni da želite obrisati ovog korisnika?')) return;
-    const deleted = users.splice(index, 1)[0];
-    products = products.filter(p => p.owner !== deleted.username);
-    reports = reports.filter(r => r.username !== deleted.username);
-    if (supabaseClient) {
-        const [{ error: userError }, { error: prodError }, { error: reportError }] = await Promise.all([
-            supabaseClient.from('users').delete().eq('username', deleted.username),
-            supabaseClient.from('products').delete().eq('owner', deleted.username),
-            supabaseClient.from('reports').delete().eq('username', deleted.username)
-        ]);
-        if (userError) console.warn('Greška pri brisanju korisnika iz Supabase:', userError.message);
-        if (prodError) console.warn('Greška pri brisanju oglasa iz Supabase:', prodError.message);
-        if (reportError) console.warn('Greška pri brisanju prijava iz Supabase:', reportError.message);
-    }
-    persistAdminState();
-    createLog('Brisanje korisnika', `${currentAdmin ? '@' + currentAdmin.username : 'Sistem'} je obrisao korisnika @${deleted.username}`);
-    renderAdminUsers();
-    renderReports();
-    renderAdminSummary();
-}
-
-async function initAdminPage() {
-    const loginForm = document.getElementById('adminLoginForm');
-    const submitBtn = loginForm ? loginForm.querySelector('button[type="submit"]') : null;
-    
-    // Onemogući klikanje na login dugme dok podaci ne stignu iz Supabase
-    if (submitBtn) {
-        submitBtn.disabled = true;
-        submitBtn.innerText = "Učitavanje podataka...";
-    }
-
-    await loadAdminData();
-
-    // Omogući formu ponovo kada su podaci spremni u nizovima
-    if (submitBtn) {
-        submitBtn.disabled = false;
-        submitBtn.innerText = "Prijavi se";
-    }
-
-    const savedAdminUsername = sessionStorage.getItem(adminUsernameKey);
-    if (savedAdminUsername) {
-        currentAdmin = users.find(u => u.username === savedAdminUsername && ['admin', 'owner'].includes(u.role)) || null;
-        if (currentAdmin) {
-            showDashboard();
-            return;
+    if (isAdminPageActive) {
+        const savedUsername = sessionStorage.getItem(adminUsernameKey);
+        if (savedUsername && users && users.length > 0) {
+            currentAdmin = users.find(u => u && u.username === savedUsername) || null;
         }
     }
-    if (isAdminPageActive) {
+
+    if (isAdminPageActive && currentAdmin) {
         showDashboard();
     } else {
         showLogin();
     }
 
-    document.getElementById('adminLoginForm').addEventListener('submit', function(e) {
-        e.preventDefault();
-        const username = document.getElementById('adminLoginUser').value.trim();
-        const password = document.getElementById('adminLoginPass').value.trim();
-        
-        const adminUser = users.find(u => u.username === username && ['admin', 'owner'].includes(u.role));
-        if (!adminUser || adminPasswords[username] !== password) {
-            alert('Pogrešno korisničko ime ili lozinka za admin panel.');
-            return;
-        }
-        currentAdmin = adminUser;
-        isAdminPageActive = true;
-        sessionStorage.setItem(adminSessionKey, 'true');
-        sessionStorage.setItem(adminUsernameKey, currentAdmin.username);
-        sessionStorage.removeItem('currentUserActive');
-        createLog('Admin prijava', `@${currentAdmin.username} (${currentAdmin.role}) se prijavio na panel`);
-        showDashboard();
-    });
+    const loginForm = document.getElementById('adminLoginForm');
+    if (loginForm) {
+        loginForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const usernameInput = document.getElementById('adminLoginUser');
+            const passwordInput = document.getElementById('adminLoginPass');
+            
+            if (!usernameInput || !passwordInput) {
+                console.error("❌ Ulazna polja nisu pronađena u HTML-u.");
+                return;
+            }
 
-    document.getElementById('adminLogout').addEventListener('click', function() {
-        isAdminPageActive = false;
-        currentAdmin = null;
-        sessionStorage.removeItem(adminSessionKey);
-        sessionStorage.removeItem(adminUsernameKey);
-        createLog('Admin odjava', 'Administrator se odjavio sa panela');
-        showLogin();
-    });
-}
+            const username = usernameInput.value.trim();
+            const password = passwordInput.value.trim();
+            
+            if (!users || users.length === 0) {
+                alert('Podaci o korisnicima se još učitavaju sa servera. Molimo sačekajte sekundu.');
+                return;
+            }
 
-window.addEventListener('load', initAdminPage);
+            const adminUser = users.find(u => u && u.username === username && ['admin', 'owner'].includes(u.role));
+            if (!adminUser || adminPasswords[username] !== password) {
+                alert('Pogrešno korisničko ime ili lozinka za admin panel.');
+                return;
+            }
+            
+            currentAdmin = adminUser;
+            isAdminPageActive = true;
+            sessionStorage.setItem(adminSessionKey, 'true');
+            sessionStorage.setItem(adminUsernameKey, currentAdmin.username);
+            sessionStorage.removeItem('currentUserActive');
+            createLog('Admin prijava', `@${currentAdmin.username} (${currentAdmin.role}) se prijavio na panel`);
+            showDashboard();
+        });
+    }
+
+    const logoutBtn = document.getElementById('adminLogout');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', function() {
+            isAdminPageActive = false;
+            currentAdmin = null;
+            sessionStorage.removeItem(adminSessionKey);
+            sessionStorage.removeItem(adminUsernameKey);
+            createLog('Admin odjava', 'Administrator se odjavio sa panela');
+            showLogin();
+        });
+    }
+});
