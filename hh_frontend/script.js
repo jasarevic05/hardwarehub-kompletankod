@@ -16,10 +16,10 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) || null;
 
 const DB_TABLE_ALIASES = {
-    products: ['products', 'product', 'oglasi', 'artikli', 'ads'],
-    users: ['javni_korisnici', 'korisnici', 'users'],
-    reports: ['reports', 'prijave', 'support_reports'],
-    chats: ['chats', 'messages', 'poruke']
+    products: ['products', 'product', 'oglasi', 'artikli', 'ads', 'items', 'proizvodi', 'item', 'hardware_products', 'hardware_items', 'public.products', 'public.oglasi', 'public.artikli', 'public.items'],
+    users: ['javni_korisnici', 'korisnici', 'users', 'hardware_users', 'public.javni_korisnici', 'public.korisnici', 'public.users'],
+    reports: ['reports', 'prijave', 'support_reports', 'hardware_reports', 'public.reports', 'public.prijave'],
+    chats: ['chats', 'messages', 'poruke', 'public.chats', 'public.messages']
 };
 
 const DB_TABLE_CACHE = {};
@@ -54,13 +54,18 @@ async function resolveTableName(key) {
     if (!supabaseClient) return null;
 
     const aliases = DB_TABLE_ALIASES[key] || [key];
+    let lastError = null;
     for (const alias of aliases) {
         const { error } = await supabaseClient.from(alias).select('*').limit(1);
         if (!error) {
             DB_TABLE_CACHE[key] = alias;
+            console.log(`✅ Supabase tabela za '${key}' pronađena kao '${alias}'.`);
             return alias;
         }
+        lastError = error;
+        console.warn(`Supabase tabla '${alias}' nije dostupna:`, error.message);
     }
+    console.error(`❌ Nije pronađena Supabase tabela za '${key}'. Probani nazivi: ${aliases.join(', ')}. Zadnja greška: ${lastError?.message || 'nema poruke'}`);
     return null;
 }
 
@@ -73,6 +78,16 @@ async function fetchFromSupabase(tableKey) {
     return data || [];
 }
 
+async function safeFetchFromSupabase(tableKey, required = false) {
+    try {
+        return await fetchFromSupabase(tableKey);
+    } catch (error) {
+        console.warn(`⚠️ Nepotpuno učitavanje: Supabase tabela '${tableKey}' nije dostupna.`, error.message);
+        if (required) throw error;
+        return [];
+    }
+}
+
 async function loadSupabaseData() {
     try {
         console.log('🔄 Sinhronizacija sa Supabase bazom u toku...');
@@ -83,10 +98,10 @@ async function loadSupabaseData() {
         }
         
         const [productData, userData, reportData, chatData] = await Promise.all([
-            fetchFromSupabase('products'),
-            fetchFromSupabase('users'),
-            fetchFromSupabase('reports'),
-            fetchFromSupabase('chats')
+            safeFetchFromSupabase('products', true),
+            safeFetchFromSupabase('users', true),
+            safeFetchFromSupabase('reports', false),
+            safeFetchFromSupabase('chats', false)
         ]);
 
         products = productData || [];
@@ -107,8 +122,10 @@ async function loadSupabaseData() {
         }
 
         console.log(`✅ Sinhronizacija završena: Učitano ${products.length} oglasa.`);
+        return true;
     } catch (error) {
         console.error('❌ Greška pri učitavanju baze:', error.message);
+        return false;
     }
 }
 
@@ -533,6 +550,7 @@ if(sellForm) {
                 }
             }
 
+            const imageValues = Base64Slike.filter(Boolean);
             const noviArtikal = {
                 name: document.getElementById('prodName').value,
                 price: parseFloat(document.getElementById('prodPrice').value),
@@ -541,30 +559,64 @@ if(sellForm) {
                 condition: document.querySelector('input[name="prodCondition"]:checked').value,
                 specs: document.getElementById('prodSpecs').value,
                 owner: currentUser.username,
-                images: Base64Slike.filter(Boolean),
                 views: 0,
                 promote: promoteTip,
                 created_at: new Date().toISOString()
             };
 
+            if (imageValues.length) {
+                noviArtikal.images = imageValues;
+            }
+
+            let insertedItem = null;
             if (supabaseClient) {
                 const tableName = await resolveTableName('products');
                 if (!tableName) {
                     alert('Greška: tabela proizvoda nije pronađena.');
                     return;
                 }
-                const { error } = await supabaseClient.from(tableName).insert([noviArtikal]);
-                if (error) {
-                    alert('Greška pri objavi oglasa: ' + error.message);
+
+                let insertData = { ...noviArtikal };
+                let result = null;
+
+                for (let attempt = 0; attempt < 4; attempt++) {
+                    result = await supabaseClient.from(tableName).insert([insertData]);
+                    if (!result.error) break;
+
+                    const missingFieldMatch = result.error.message.match(/Could not find the '(.+)' column/i);
+                    if (!missingFieldMatch) break;
+
+                    const missingField = missingFieldMatch[1];
+                    if (missingField === 'images' && insertData.images) {
+                        delete insertData.images;
+                        if (imageValues.length) insertData.img = imageValues[0];
+                    } else if (missingField === 'promote' && insertData.promote !== undefined) {
+                        delete insertData.promote;
+                    } else if (missingField === 'views' && insertData.views !== undefined) {
+                        delete insertData.views;
+                    } else if (missingField === 'created_at' && insertData.created_at !== undefined) {
+                        delete insertData.created_at;
+                    } else {
+                        break;
+                    }
+                }
+
+                if (result?.error) {
+                    alert('Greška pri objavi oglasa: ' + result.error.message);
                     return;
                 }
+
+                insertedItem = (result.data && result.data[0]) ? result.data[0] : { ...insertData };
             }
 
             sellForm.reset();
             document.getElementById('sellModal').style.display = "none";
             alert(cijenaIzdvajanja > 0 ? `Uspješno! Oglas je izdvojen (-${cijenaIzdvajanja} Coinsa).` : "Vaš oglas je uspješno objavljen na server!");
             
-            await loadSupabaseData();
+            const loaded = await loadSupabaseData();
+            if (!loaded && insertedItem) {
+                products.push(insertedItem);
+            }
             proveriAdminInterfejs();
             render(products);
 

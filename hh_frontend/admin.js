@@ -15,9 +15,9 @@ const adminSessionKey = 'adminPageActive';
 const adminUsernameKey = 'currentAdminUsername';
 
 const DB_TABLE_ALIASES = {
-    products: ['products', 'product', 'oglasi', 'artikli', 'ads'],
-    users: ['javni_korisnici', 'korisnici', 'users'],
-    reports: ['reports', 'prijave', 'support_reports']
+    products: ['products', 'product', 'oglasi', 'artikli', 'ads', 'items', 'proizvodi', 'item', 'hardware_products', 'hardware_items', 'public.products', 'public.oglasi', 'public.artikli', 'public.items'],
+    users: ['javni_korisnici', 'korisnici', 'users', 'hardware_users', 'public.javni_korisnici', 'public.korisnici', 'public.users'],
+    reports: ['reports', 'prijave', 'support_reports', 'hardware_reports', 'public.reports', 'public.prijave']
 };
 
 const DB_TABLE_CACHE = {};
@@ -38,13 +38,18 @@ async function resolveTableName(key) {
     if (DB_TABLE_CACHE[key]) return DB_TABLE_CACHE[key];
     if (!supabaseClient) return null;
     const aliases = DB_TABLE_ALIASES[key] || [key];
+    let lastError = null;
     for (const alias of aliases) {
         const { error } = await supabaseClient.from(alias).select('*').limit(1);
         if (!error) {
             DB_TABLE_CACHE[key] = alias;
+            console.log(`✅ Supabase tabela za '${key}' pronađena kao '${alias}'.`);
             return alias;
         }
+        lastError = error;
+        console.warn(`Supabase tabla '${alias}' nije dostupna:`, error.message);
     }
+    console.error(`❌ Nije pronađena Supabase tabela za '${key}'. Probani nazivi: ${aliases.join(', ')}. Zadnja greška: ${lastError?.message || 'nema poruke'}`);
     return null;
 }
 
