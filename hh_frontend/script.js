@@ -35,7 +35,8 @@ let reports = [];
 let chats = [];
 
 let currentUser = JSON.parse(sessionStorage.getItem('currentUserActive')) || null;
-let activeChatUser = null; 
+let activeChatUser = null;
+let currentEditListingId = null;
 
 const grid = document.getElementById('productGrid');
 
@@ -337,29 +338,67 @@ function renderMyListings() {
 
 async function editListing(id) {
     const ad = products.find(p => p.id === id);
-    if(!ad) return;
-    const novoIme = prompt('Unesite novi naziv artikla:', ad.name);
-    const novaCijena = prompt('Unesite novu cijenu:', ad.price);
-    const noviSpecs = prompt('Unesite nove specifikacije:', ad.specs);
-    
-    if (novoIme || novaCijena || noviSpecs) {
-        const updateData = {};
-        if (novoIme) updateData.name = novoIme;
-        if (novaCijena && !isNaN(Number(novaCijena))) updateData.price = Number(novaCijena);
-        if (noviSpecs) updateData.specs = noviSpecs;
+    if(!ad) {
+        showToast('Oglas nije pronađen.', 'error');
+        return;
+    }
+    currentEditListingId = id;
+    document.getElementById('editListingId').value = id;
+    document.getElementById('editListingName').value = ad.name || '';
+    document.getElementById('editListingPrice').value = ad.price || '';
+    document.getElementById('editListingSpecs').value = ad.specs || '';
+    document.getElementById('editListingModal').style.display = 'block';
+}
 
+const editListingForm = document.getElementById('editListingForm');
+if (editListingForm) {
+    editListingForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const id = currentEditListingId || document.getElementById('editListingId').value;
+        const name = document.getElementById('editListingName').value.trim();
+        const price = Number(document.getElementById('editListingPrice').value);
+        const specs = document.getElementById('editListingSpecs').value.trim();
+
+        if (!name || !specs || !price || isNaN(price)) {
+            showToast('Molimo popunite sva polja ispravno.', 'warning');
+            return;
+        }
+
+        const updateData = { name, price, specs };
         if (supabaseClient) {
             const tableName = await resolveTableName('products');
             if (!tableName) {
-                alert('Greška: tabela za proizvode nije pronađena.');
+                showToast('Greška: tabela za proizvode nije pronađena.', 'error');
                 return;
             }
             await supabaseClient.from(tableName).update(updateData).eq('id', id);
         }
+
         await loadSupabaseData();
         renderMyListings();
         render(products);
-    }
+        document.getElementById('editListingModal').style.display = 'none';
+        showToast('Oglas je uspješno ažuriran.', 'success');
+    });
+}
+
+const cancelEditListing = document.getElementById('cancelEditListing');
+if (cancelEditListing) cancelEditListing.onclick = () => document.getElementById('editListingModal').style.display = 'none';
+const closeEditListing = document.getElementById('closeEditListing');
+if (closeEditListing) closeEditListing.onclick = () => document.getElementById('editListingModal').style.display = 'none';
+
+function showToast(message, type = 'success') {
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.innerText = message;
+    container.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add('visible'));
+    setTimeout(() => {
+        toast.classList.remove('visible');
+        toast.addEventListener('transitionend', () => toast.remove(), { once: true });
+    }, 3200);
 }
 
 async function purchaseMembership(level) {

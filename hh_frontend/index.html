@@ -33,6 +33,30 @@
         </div>
     </nav>
 
+    <section class="hero-banner">
+        <div class="hero-banner__content">
+            <div>
+                <span class="hero-badge">Brza online platforma za hardver</span>
+                <h1>Pronađi najbolju komponentu. Prodaš brzo. Uvijek najbolja cijena.</h1>
+                <p>Pregledaj sve oglase, filtriraj po proizvodu ili stanju i izdvoji svoj artikal uz moderan, jednostavan i ugodan dizajn.</p>
+                <div class="hero-actions">
+                    <button id="heroSellBtn" class="btn-action primary" onclick="document.getElementById('openSell').click()">Prodaj Artikal</button>
+                    <button id="heroAboutBtn" class="btn-action secondary" onclick="window.location.href='about.html'">Saznaj više</button>
+                </div>
+            </div>
+            <div class="hero-preview">
+                <div class="preview-card">
+                    <h3>Brza pretraga</h3>
+                    <p>Tražite komponente po kategorijama, proizvođačima i stanju, sve na jednoj mjestu.</p>
+                </div>
+                <div class="preview-card">
+                    <h3>Izdvajanje oglasa</h3>
+                    <p>Osvijetlimo vaše najbolje ponude i postavimo ih ispred kupaca koji traže hardver.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <div id="filterModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -164,6 +188,38 @@
             </div>
         </div>
     </div>
+
+    <div id="editListingModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Uredi oglas</h2>
+                <span id="closeEditListing" class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="editListingForm">
+                    <input type="hidden" id="editListingId">
+                    <div class="filter-item">
+                        <label>Naziv komponente</label>
+                        <input type="text" id="editListingName" class="form-input" required>
+                    </div>
+                    <div class="filter-item">
+                        <label>Cijena (KM)</label>
+                        <input type="number" id="editListingPrice" class="form-input" required>
+                    </div>
+                    <div class="filter-item">
+                        <label>Opis i specifikacije</label>
+                        <textarea id="editListingSpecs" class="form-input" rows="4" required></textarea>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" id="cancelEditListing" class="btn-action secondary">Odustani</button>
+                        <button type="submit" class="btn-action primary">Sačuvaj izmjene</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div id="toastContainer" class="toast-container"></div>
 
     <div id="authModal" class="modal">
         <div class="modal-content">
