@@ -10,16 +10,21 @@ if (!supabaseClient) {
     console.error("❌ Admin greška: Supabase klijent nije inicijalizovan! Provjerite CDN skriptu.");
 }
 
-const localProductKey = 'hardware_products';
-const localUserKey = 'hardware_users';
-const localReportKey = 'hardware_reports';
 const localLogKey = 'hardware_logs';
 const adminSessionKey = 'adminPageActive';
 const adminUsernameKey = 'currentAdminUsername';
 
-let products = JSON.parse(localStorage.getItem(localProductKey)) || [];
-let users = JSON.parse(localStorage.getItem(localUserKey)) || [];
-let reports = JSON.parse(localStorage.getItem(localReportKey)) || [];
+const DB_TABLE_ALIASES = {
+    products: ['products', 'product', 'oglasi', 'artikli', 'ads'],
+    users: ['javni_korisnici', 'korisnici', 'users'],
+    reports: ['reports', 'prijave', 'support_reports']
+};
+
+const DB_TABLE_CACHE = {};
+
+let products = [];
+let users = [];
+let reports = [];
 let logs = JSON.parse(localStorage.getItem(localLogKey)) || [];
 
 // Čišćenje niza odmah u startu od potencijalnih null elemenata u kešu
@@ -29,19 +34,40 @@ products = products.filter(p => p !== null && p !== undefined);
 let currentAdmin = null;
 let isAdminPageActive = sessionStorage.getItem(adminSessionKey) === 'true';
 
+async function resolveTableName(key) {
+    if (DB_TABLE_CACHE[key]) return DB_TABLE_CACHE[key];
+    if (!supabaseClient) return null;
+    const aliases = DB_TABLE_ALIASES[key] || [key];
+    for (const alias of aliases) {
+        const { error } = await supabaseClient.from(alias).select('*').limit(1);
+        if (!error) {
+            DB_TABLE_CACHE[key] = alias;
+            return alias;
+        }
+    }
+    return null;
+}
+
 async function fetchAllData() {
     if (!supabaseClient) {
-        console.warn("⚠️ Supabase klijent nije dostupan. Pokušavam učitati lokalni keš.");
-        products = JSON.parse(localStorage.getItem(localProductKey)) || [];
-        users = JSON.parse(localStorage.getItem(localUserKey)) || [];
-        reports = JSON.parse(localStorage.getItem(localReportKey)) || [];
+        alert('❌ Supabase klijent nije dostupan. Podaci se ne mogu učitati.');
         return;
     }
     try {
+        const [productsTable, usersTable, reportsTable] = await Promise.all([
+            resolveTableName('products'),
+            resolveTableName('users'),
+            resolveTableName('reports')
+        ]);
+
+        if (!productsTable || !usersTable || !reportsTable) {
+            throw new Error('Jedna ili više potrebnih tabela nisu pronađene u Supabase bazi.');
+        }
+
         const [prodRes, userRes, repRes] = await Promise.all([
-            supabaseClient.from('products').select('*'),
-            supabaseClient.from('javni_korisnici').select('*'),
-            supabaseClient.from('reports').select('*')
+            supabaseClient.from(productsTable).select('*'),
+            supabaseClient.from(usersTable).select('*'),
+            supabaseClient.from(reportsTable).select('*')
         ]);
 
         if (prodRes.error) console.error("Greška pri učitavanju proizvoda:", prodRes.error.message);
@@ -52,10 +78,7 @@ async function fetchAllData() {
         users = (userRes.data || []).filter(u => u !== null);
         reports = (repRes.data || []).filter(r => r !== null);
 
-        localStorage.setItem(localProductKey, JSON.stringify(products));
-        localStorage.setItem(localUserKey, JSON.stringify(users));
-        localStorage.setItem(localReportKey, JSON.stringify(reports));
-
+        // Podaci se koriste direktno iz baze, bez lokalnog cache-a.
         console.log("🔄 Podaci uspješno povučeni iz Supabase baze.");
     } catch (err) {
         console.error("Sustavni problem sa povlačenjem podataka:", err);
@@ -143,8 +166,13 @@ async function modifikujCoins(username, iznos) {
     let noviSaldo = Math.max(0, trenutniCoins + iznos);
 
     if (supabaseClient) {
+        const usersTable = await resolveTableName('users');
+        if (!usersTable) {
+            alert('Greška: tabela korisnika nije pronađena.');
+            return;
+        }
         const { error } = await supabaseClient
-            .from('javni_korisnici')
+            .from(usersTable)
             .update({ hhcoins: noviSaldo })
             .eq('username', username);
             
@@ -163,19 +191,25 @@ async function obrisiKorisnika(username) {
     if (!confirm(`Da li ste sigurni da želite trajno obrisati korisnika @${username} i sve njegove oglase?`)) return;
     
     if (supabaseClient) {
-        const { error: productError } = await supabaseClient.from('products').delete().eq('owner', username);
-        if (productError) {
-            alert("Greška pri brisanju oglasa korisnika: " + productError.message);
-            return;
-        }
+            const productsTable = await resolveTableName('products');
+            const usersTable = await resolveTableName('users');
+            if (!productsTable || !usersTable) {
+                alert('Greška: potrebne tabele nisu pronađene u bazi.');
+                return;
+            }
 
-        const { error } = await supabaseClient.from('javni_korisnici').delete().eq('username', username);
-        if (error) {
-            alert("Greška pri brisanju korisnika: " + error.message);
-            return;
-        }
-    }
+            const { error: productError } = await supabaseClient.from(productsTable).delete().eq('owner', username);
+            if (productError) {
+                alert("Greška pri brisanju oglasa korisnika: " + productError.message);
+                return;
+            }
 
+            const { error } = await supabaseClient.from(usersTable).delete().eq('username', username);
+            if (error) {
+                alert("Greška pri brisanju korisnika: " + error.message);
+                return;
+            }
+        }
     createLog('Uklanjanje korisnika', `Korisnik @${username} je trajno obrisan.`);
     await fetchAllData();
     showDashboard();
@@ -205,7 +239,12 @@ function renderReports() {
 
 async function ZatvoriPrijavu(id) {
     if (supabaseClient) {
-        const { error } = await supabaseClient.from('reports').delete().eq('id', id);
+        const reportsTable = await resolveTableName('reports');
+        if (!reportsTable) {
+            alert('Greška: tabela prijava nije pronađena.');
+            return;
+        }
+        const { error } = await supabaseClient.from(reportsTable).delete().eq('id', id);
         if (error) {
             alert("Greška pri zatvaranju prijave: " + error.message);
             return;

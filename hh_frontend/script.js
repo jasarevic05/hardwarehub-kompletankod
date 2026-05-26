@@ -15,6 +15,15 @@ const SUPABASE_URL = "https://gvwmkqqhpdklikkbciol.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2d21rcXFocGRrbGlra2JjaW9sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxODg2OTEsImV4cCI6MjA5NDc2NDY5MX0.X5URdWNvIez_jiuT4uyhBtTAi9Vcr2SDf9KyKE5YdE0";
 const supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) || null;
 
+const DB_TABLE_ALIASES = {
+    products: ['products', 'product', 'oglasi', 'artikli', 'ads'],
+    users: ['javni_korisnici', 'korisnici', 'users'],
+    reports: ['reports', 'prijave', 'support_reports'],
+    chats: ['chats', 'messages', 'poruke']
+};
+
+const DB_TABLE_CACHE = {};
+
 if (!supabaseClient) {
     console.error("❌ KRITIČNO: Supabase klijent nije inicijalizovan! Provjerite CDN skriptu.");
 }
@@ -40,13 +49,27 @@ function findLocalUserByUsername(username) {
     return users.find(u => u.username === username) || null;
 }
 
-async function fetchFromSupabase(table) {
-    if (!supabaseClient) return [];
-    const { data, error } = await supabaseClient.from(table).select('*');
-    if (error) {
-        console.warn(`Supabase fetch error (${table}):`, error.message);
-        return [];
+async function resolveTableName(key) {
+    if (DB_TABLE_CACHE[key]) return DB_TABLE_CACHE[key];
+    if (!supabaseClient) return null;
+
+    const aliases = DB_TABLE_ALIASES[key] || [key];
+    for (const alias of aliases) {
+        const { error } = await supabaseClient.from(alias).select('*').limit(1);
+        if (!error) {
+            DB_TABLE_CACHE[key] = alias;
+            return alias;
+        }
     }
+    return null;
+}
+
+async function fetchFromSupabase(tableKey) {
+    if (!supabaseClient) throw new Error('Supabase klijent nije dostupan.');
+    const tableName = await resolveTableName(tableKey);
+    if (!tableName) throw new Error(`Tablica za '${tableKey}' nije pronađena u Supabase bazi.`);
+    const { data, error } = await supabaseClient.from(tableName).select('*');
+    if (error) throw error;
     return data || [];
 }
 
@@ -61,7 +84,7 @@ async function loadSupabaseData() {
         
         const [productData, userData, reportData, chatData] = await Promise.all([
             fetchFromSupabase('products'),
-            fetchFromSupabase('javni_korisnici'),
+            fetchFromSupabase('users'),
             fetchFromSupabase('reports'),
             fetchFromSupabase('chats')
         ]);
@@ -91,14 +114,18 @@ async function loadSupabaseData() {
 
 async function getUserByUsername(username) {
     if (!supabaseClient) return findLocalUserByUsername(username);
-    const { data, error } = await supabaseClient.from('javni_korisnici').select('*').eq('username', username).maybeSingle();
+    const tableName = await resolveTableName('users');
+    if (!tableName) return findLocalUserByUsername(username);
+    const { data, error } = await supabaseClient.from(tableName).select('*').eq('username', username).maybeSingle();
     if (error) return findLocalUserByUsername(username);
     return data || findLocalUserByUsername(username);
 }
 
 async function getUserByEmail(email) {
     if (!supabaseClient) return findLocalUserByEmail(email);
-    const { data, error } = await supabaseClient.from('javni_korisnici').select('*').eq('email', email).maybeSingle();
+    const tableName = await resolveTableName('users');
+    if (!tableName) return findLocalUserByEmail(email);
+    const { data, error } = await supabaseClient.from(tableName).select('*').eq('email', email).maybeSingle();
     if (error) return findLocalUserByEmail(email);
     return data || findLocalUserByEmail(email);
 }
@@ -180,7 +207,12 @@ async function obrisiArtikal(index) {
     if(confirm("Da li ste sigurni da želite obrisati ovaj oglas?")) {
         const artikal = products[index];
         if (artikal?.id && supabaseClient) {
-            const { error } = await supabaseClient.from('products').delete().eq('id', artikal.id);
+            const tableName = await resolveTableName('products');
+            if (!tableName) {
+                alert('Greška: tabela za proizvode nije pronađena.');
+                return;
+            }
+            const { error } = await supabaseClient.from(tableName).delete().eq('id', artikal.id);
             if (error) {
                 alert('Greška pri brisanju sa servera: ' + error.message);
                 return;
@@ -201,7 +233,10 @@ async function otvoriDetaljeArtikla(id) {
 
     artikal.views = (artikal.views || 0) + 1;
     if (artikal.id && supabaseClient) {
-        await supabaseClient.from('products').update({ views: artikal.views }).eq('id', artikal.id);
+        const tableName = await resolveTableName('products');
+        if (tableName) {
+            await supabaseClient.from(tableName).update({ views: artikal.views }).eq('id', artikal.id);
+        }
     }
 
     document.getElementById('detTitle').innerText = artikal.name;
@@ -297,7 +332,12 @@ async function editListing(id) {
         if (noviSpecs) updateData.specs = noviSpecs;
 
         if (supabaseClient) {
-            await supabaseClient.from('products').update(updateData).eq('id', id);
+            const tableName = await resolveTableName('products');
+            if (!tableName) {
+                alert('Greška: tabela za proizvode nije pronađena.');
+                return;
+            }
+            await supabaseClient.from(tableName).update(updateData).eq('id', id);
         }
         await loadSupabaseData();
         renderMyListings();
@@ -318,7 +358,12 @@ async function purchaseMembership(level) {
     trenutniSalda -= cost;
 
     if (supabaseClient) {
-        await supabaseClient.from('javni_korisnici').update({ hhcoins: trenutniSalda, role: level }).eq('username', currentUser.username);
+        const tableName = await resolveTableName('users');
+        if (!tableName) {
+            alert('Greška: tabela korisnika nije pronađena.');
+            return;
+        }
+        await supabaseClient.from(tableName).update({ hhcoins: trenutniSalda, role: level }).eq('username', currentUser.username);
     }
     
     await loadSupabaseData();
@@ -403,7 +448,12 @@ if(chatForm) {
         };
 
         if (supabaseClient) {
-            await supabaseClient.from('chats').insert([novaPoruka]);
+            const tableName = await resolveTableName('chats');
+            if (!tableName) {
+                alert('Greška: tabela chata nije pronađena.');
+                return;
+            }
+            await supabaseClient.from(tableName).insert([novaPoruka]);
         }
         
         input.value = '';
@@ -470,7 +520,12 @@ if(sellForm) {
             if(cijenaIzdvajanja > 0) {
                 trenutniSaldo -= cijenaIzdvajanja;
                 if (supabaseClient) {
-                    const { error } = await supabaseClient.from('javni_korisnici').update({ hhcoins: trenutniSaldo }).eq('username', currentUser.username);
+                    const tableName = await resolveTableName('users');
+                    if (!tableName) {
+                        alert('Greška: tabela korisnika nije pronađena.');
+                        return;
+                    }
+                    const { error } = await supabaseClient.from(tableName).update({ hhcoins: trenutniSaldo }).eq('username', currentUser.username);
                     if (error) {
                         alert('Greška pri ažuriranju HHCoina: ' + error.message);
                         return;
@@ -493,7 +548,12 @@ if(sellForm) {
             };
 
             if (supabaseClient) {
-                const { error } = await supabaseClient.from('products').insert([noviArtikal]);
+                const tableName = await resolveTableName('products');
+                if (!tableName) {
+                    alert('Greška: tabela proizvoda nije pronađena.');
+                    return;
+                }
+                const { error } = await supabaseClient.from(tableName).insert([noviArtikal]);
                 if (error) {
                     alert('Greška pri objavi oglasa: ' + error.message);
                     return;
@@ -573,7 +633,14 @@ if(registerForm) {
         };
 
         if (supabaseClient) {
-            const { error } = await supabaseClient.from('javni_korisnici').insert([noviUserProfil]);
+            const tableName = await resolveTableName('users');
+            if (!tableName) {
+                alert('Greška: tabela korisnika nije pronađena.');
+                btnRegister.innerText = "Registruj se";
+                btnRegister.disabled = false;
+                return;
+            }
+            const { error } = await supabaseClient.from(tableName).insert([noviUserProfil]);
             if (error) {
                 alert("Greška pri registraciji: " + error.message);
                 btnRegister.innerText = "Registruj se";
@@ -722,7 +789,12 @@ if(saveProfileBtn) {
         }
 
         if (supabaseClient) {
-            await supabaseClient.from('javni_korisnici').update({ name: newName, email: newEmail }).eq('username', currentUser.username);
+            const tableName = await resolveTableName('users');
+            if (!tableName) {
+                alert('Greška: tabela korisnika nije pronađena.');
+                return;
+            }
+            await supabaseClient.from(tableName).update({ name: newName, email: newEmail }).eq('username', currentUser.username);
         }
         
         await loadSupabaseData();
@@ -767,7 +839,12 @@ if(reportForm) {
             created_at: new Date().toISOString()
         };
         if (supabaseClient) {
-            const { error } = await supabaseClient.from('reports').insert([noviReport]);
+            const tableName = await resolveTableName('reports');
+            if (!tableName) {
+                alert('Greška: tabela prijava nije pronađena.');
+                return;
+            }
+            const { error } = await supabaseClient.from(tableName).insert([noviReport]);
             if (error) {
                 alert('Greška pri slanju prijave: ' + error.message);
                 return;
