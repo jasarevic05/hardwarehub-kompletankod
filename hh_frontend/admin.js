@@ -30,7 +30,13 @@ let currentAdmin = null;
 let isAdminPageActive = sessionStorage.getItem(adminSessionKey) === 'true';
 
 async function fetchAllData() {
-    if (!supabaseClient) return;
+    if (!supabaseClient) {
+        console.warn("⚠️ Supabase klijent nije dostupan. Pokušavam učitati lokalni keš.");
+        products = JSON.parse(localStorage.getItem(localProductKey)) || [];
+        users = JSON.parse(localStorage.getItem(localUserKey)) || [];
+        reports = JSON.parse(localStorage.getItem(localReportKey)) || [];
+        return;
+    }
     try {
         const [prodRes, userRes, repRes] = await Promise.all([
             supabaseClient.from('products').select('*'),
@@ -50,7 +56,7 @@ async function fetchAllData() {
         localStorage.setItem(localUserKey, JSON.stringify(users));
         localStorage.setItem(localReportKey, JSON.stringify(reports));
 
-        console.log("🔄 Podaci uspješno povučeni iz tabele 'javni_korisnici'.");
+        console.log("🔄 Podaci uspješno povučeni iz Supabase baze.");
     } catch (err) {
         console.error("Sustavni problem sa povlačenjem podataka:", err);
     }
@@ -157,9 +163,13 @@ async function obrisiKorisnika(username) {
     if (!confirm(`Da li ste sigurni da želite trajno obrisati korisnika @${username} i sve njegove oglase?`)) return;
     
     if (supabaseClient) {
-        await supabaseClient.from('products').delete().eq('owner', username);
+        const { error: productError } = await supabaseClient.from('products').delete().eq('owner', username);
+        if (productError) {
+            alert("Greška pri brisanju oglasa korisnika: " + productError.message);
+            return;
+        }
+
         const { error } = await supabaseClient.from('javni_korisnici').delete().eq('username', username);
-        
         if (error) {
             alert("Greška pri brisanju korisnika: " + error.message);
             return;
@@ -274,12 +284,27 @@ window.addEventListener('load', async () => {
             }
 
             const adminUser = users.find(u => u && u.username === username && ['admin', 'owner'].includes(u.role));
-            if (!adminUser || adminPasswords[username] !== password) {
+            const fallbackPasswordMatch = adminPasswords[username] === password;
+            const fallbackRole = username === 'owner' ? 'owner' : 'admin';
+
+            if (adminUser) {
+                if (adminUser.password !== password) {
+                    alert('Pogrešno korisničko ime ili lozinka za admin panel.');
+                    return;
+                }
+                currentAdmin = adminUser;
+            } else if (fallbackPasswordMatch) {
+                currentAdmin = {
+                    username,
+                    role: fallbackRole,
+                    name: fallbackRole === 'owner' ? 'Administrator' : 'Admin',
+                    email: `${username}@hardwarehub.ba`
+                };
+            } else {
                 alert('Pogrešno korisničko ime ili lozinka za admin panel.');
                 return;
             }
             
-            currentAdmin = adminUser;
             isAdminPageActive = true;
             sessionStorage.setItem(adminSessionKey, 'true');
             sessionStorage.setItem(adminUsernameKey, currentAdmin.username);

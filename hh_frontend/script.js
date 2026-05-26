@@ -41,13 +41,13 @@ function findLocalUserByUsername(username) {
 }
 
 async function fetchFromSupabase(table) {
-    if (!supabaseClient) return null;
+    if (!supabaseClient) return [];
     const { data, error } = await supabaseClient.from(table).select('*');
     if (error) {
         console.warn(`Supabase fetch error (${table}):`, error.message);
-        return null;
+        return [];
     }
-    return data;
+    return data || [];
 }
 
 async function loadSupabaseData() {
@@ -470,7 +470,11 @@ if(sellForm) {
             if(cijenaIzdvajanja > 0) {
                 trenutniSaldo -= cijenaIzdvajanja;
                 if (supabaseClient) {
-                    await supabaseClient.from('javni_korisnici').update({ hhcoins: trenutniSaldo }).eq('username', currentUser.username);
+                    const { error } = await supabaseClient.from('javni_korisnici').update({ hhcoins: trenutniSaldo }).eq('username', currentUser.username);
+                    if (error) {
+                        alert('Greška pri ažuriranju HHCoina: ' + error.message);
+                        return;
+                    }
                 }
             }
 
@@ -482,14 +486,18 @@ if(sellForm) {
                 condition: document.querySelector('input[name="prodCondition"]:checked').value,
                 specs: document.getElementById('prodSpecs').value,
                 owner: currentUser.username,
-                images: Base64Slike,
+                images: Base64Slike.filter(Boolean),
                 views: 0,
-                promote: promoteTip
+                promote: promoteTip,
+                created_at: new Date().toISOString()
             };
 
             if (supabaseClient) {
                 const { error } = await supabaseClient.from('products').insert([noviArtikal]);
-                if (error) throw error;
+                if (error) {
+                    alert('Greška pri objavi oglasa: ' + error.message);
+                    return;
+                }
             }
 
             sellForm.reset();
@@ -755,10 +763,15 @@ if(reportForm) {
         const noviReport = {
             username: document.getElementById('repUser').value,
             subject: document.getElementById('repSubject').value,
-            message: document.getElementById('repMessage').value
+            message: document.getElementById('repMessage').value,
+            created_at: new Date().toISOString()
         };
         if (supabaseClient) {
-            await supabaseClient.from('reports').insert([noviReport]);
+            const { error } = await supabaseClient.from('reports').insert([noviReport]);
+            if (error) {
+                alert('Greška pri slanju prijave: ' + error.message);
+                return;
+            }
         }
         await loadSupabaseData();
         alert("Poslano podršci!"); 
