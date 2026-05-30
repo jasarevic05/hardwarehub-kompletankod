@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="bs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HardwareHub | PC Builder</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        .builder-container { display: grid; grid-template-columns: 350px 1fr; gap: 30px; padding: 40px 5%; align-items: start; }
+        .build-summary { background: var(--surface); border: 1px solid var(--border); border-radius: 24px; padding: 24px; position: sticky; top: 90px; }
+        .build-slot { background: rgba(255,255,255,0.02); border: 1px dashed var(--border); padding: 15px; border-radius: 16px; margin-bottom: 12px; cursor: pointer; transition: 0.2s; }
+        .build-slot:hover, .build-slot.active { border-color: var(--accent); background: rgba(61, 224, 255, 0.05); }
+        .build-slot.filled { border-style: solid; border-color: rgba(255,255,255,0.15); background: rgba(255,255,255,0.01); }
+        .slot-title { font-size: 0.85rem; color: var(--text-dim); text-transform: uppercase; font-weight: 800; margin-bottom: 5px; }
+        .slot-content { display: flex; justify-content: space-between; align-items: center; font-size: 0.95rem; font-weight: 600; }
+        .budget-bar-container { background: rgba(255,255,255,0.05); border-radius: 10px; height: 8px; margin: 15px 0 25px 0; overflow: hidden; }
+        .budget-bar { height: 100%; width: 0%; background: var(--accent); transition: 0.4s ease-out; }
+        .budget-bar.over { background: var(--danger) !important; }
+        .component-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; }
+        .compat-alert { padding: 15px; border-radius: 12px; margin-top: 15px; font-size: 0.9rem; font-weight: 600; text-align: center; }
+        .compat-ok { background: rgba(52, 211, 153, 0.15); color: var(--success); border: 1px solid rgba(52, 211, 153, 0.3); }
+        .compat-warn { background: rgba(250, 204, 21, 0.15); color: var(--featured); border: 1px solid rgba(250, 204, 21, 0.3); }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar">
+        <div class="logo">HARDWARE<span>HUB</span></div>
+        <div class="nav-actions">
+            <a href="index.html" class="btn-action secondary" style="text-decoration:none;">Nazad na Marketplace</a>
+        </div>
+    </nav>
+
+    <div class="builder-container">
+        <aside class="build-summary">
+            <h3>Konfiguracija računara</h3>
+            
+            <div class="filter-item" style="margin-top:15px;">
+                <label>Vaš planirani budžet (KM)</label>
+                <input type="number" id="budgetInput" class="form-input" value="2000" style="background:rgba(0,0,0,0.2);">
+            </div>
+
+            <div style="display:flex; justify-content:space-between; margin-top:15px; font-weight:800; font-size:0.9rem;">
+                <span style="color:var(--text-dim);">Ukupno: <b id="totalCost" style="color:white; font-size:1.2rem;">0 KM</b></span>
+            </div>
+            
+            <div class="budget-bar-container">
+                <div id="budgetBar" class="budget-bar"></div>
+            </div>
+
+            <div id="slotsContainer"></div>
+            
+
+            <div id="compatStatus" class="compat-alert compat-ok">
+                ℹ️ Odaberite procesor kako biste započeli sklapanje.
+            </div>
+
+            <div style="margin-top: 20px; display: grid; gap: 10px;">
+                <button class="btn-action primary" id="btnSaveBuild">Sačuvaj Konfiguraciju</button>
+            </div>
+        </aside>
+
+        <main>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+        <h2 id="selectionTitle">Odaberi Procesor (CPU)</h2>
+        <div class="search-wrapper">
+            <input type="text" id="searchComponent" placeholder="Pretraži komponente...">
+        </div>
+    </div>
+    
+    <div class="product-grid" id="componentSelectionGrid"></div>
+</main>
+    </div>
+
+    <script src="builder.js"></script>
+</body>
+</html>
