@@ -11,6 +11,12 @@ if (!supabaseClient) {
     console.error("❌ Admin greška: Supabase klijent nije inicijalizovan! Provjerite CDN skriptu.");
 }
 
+
+let lastResolveError = null;
+console.log('Supabase global:', window.supabase ? Object.keys(window.supabase) : window.supabase);
+console.log('createSupabaseClient available:', typeof createSupabaseClient);
+console.log('supabaseClient initialized:', !!supabaseClient);
+
 const localLogKey = 'hardware_logs';
 const adminSessionKey = 'adminPageActive';
 const adminUsernameKey = 'currentAdminUsername';
@@ -38,65 +44,102 @@ let isAdminPageActive = sessionStorage.getItem(adminSessionKey) === 'true';
 async function resolveTableName(key) {
     if (DB_TABLE_CACHE[key]) return DB_TABLE_CACHE[key];
     if (!supabaseClient) return null;
+
     const aliases = DB_TABLE_ALIASES[key] || [key];
-    let lastError = null;
     for (const alias of aliases) {
-        const { error } = await supabaseClient.from(alias).select('*').limit(1);
-        if (!error) {
-            DB_TABLE_CACHE[key] = alias;
-            console.log(`✅ Supabase tabela za '${key}' pronađena kao '${alias}'.`);
-            return alias;
+        const candidate = alias.replace(/^public\./i, '');
+        try {
+            const { error } = await supabaseClient.from(alias).select('*').limit(1);
+            if (!error) {
+                DB_TABLE_CACHE[key] = alias;
+                console.log(`✅ Admin: pronađena tabela '${alias}' za '${key}'.`);
+                return alias;
+            }
+        } catch (e) {
+            console.warn(`Admin: ne mogu testirati tabelu '${alias}':`, e && e.message || e);
         }
-        lastError = error;
-        console.warn(`Supabase tabla '${alias}' nije dostupna:`, error.message);
+
+        if (candidate !== alias) {
+            try {
+                const { error } = await supabaseClient.from(candidate).select('*').limit(1);
+                if (!error) {
+                    DB_TABLE_CACHE[key] = candidate;
+                    console.log(`✅ Admin: pronađena tabela '${candidate}' za '${key}'.`);
+                    return candidate;
+                }
+            } catch (e) {
+                console.warn(`Admin: ne mogu testirati tabelu '${candidate}':`, e && e.message || e);
+            }
+        }
     }
-    console.error(`❌ Nije pronađena Supabase tabela za '${key}'. Probani nazivi: ${aliases.join(', ')}. Zadnja greška: ${lastError?.message || 'nema poruke'}`);
+
+    console.warn(`⚠️ Admin: nije pronađena tabela za '${key}'. Pokušani aliasi: ${aliases.join(', ')}`);
     return null;
 }
 
 async function fetchAllData() {
     if (!supabaseClient) {
-        console.error('❌ Supabase klijent nije dostupan. Podaci se ne mogu učitati.');
-        showAdminError('Nije moguće povezati se sa Supabase bazom. Admin panel će raditi u offline modu.');
+        console.error('Supabase klijent nije dostupan.');
+        showAdminError('Supabase klijent nije inicijalizovan. Provjerite da je skripta za Supabase učitana prije admin.js.');
         return false;
     }
-    try {
-        const [productsTable, usersTable, reportsTable] = await Promise.all([
-            resolveTableName('products'),
-            resolveTableName('users'),
-            resolveTableName('reports')
-        ]);
 
-        if (!productsTable || !usersTable || !reportsTable) {
-            throw new Error('Jedna ili više potrebnih tabela nisu pronađene u Supabase bazi.');
-        }
+    const productsTable = await resolveTableName('products');
+    const usersTable = await resolveTableName('users');
+    const reportsTable = await resolveTableName('reports');
 
-        const [prodRes, userRes, repRes] = await Promise.all([
-            supabaseClient.from(productsTable).select('*'),
-            supabaseClient.from(usersTable).select('*'),
-            supabaseClient.from(reportsTable).select('*')
-        ]);
-
-        if (prodRes.error) console.error("Greška pri učitavanju proizvoda:", prodRes.error.message);
-        if (userRes.error) console.error("Greška pri učitavanju korisnika:", userRes.error.message);
-        if (repRes.error) console.error("Greška pri učitavanju prijava:", repRes.error.message);
-
-        if (prodRes.error || userRes.error || repRes.error) {
-            throw new Error('Greška pri učitavanju neke od tabela iz Supabase baze.');
-        }
-
-        products = (prodRes.data || []).filter(p => p !== null);
-        users = (userRes.data || []).filter(u => u !== null);
-        reports = (repRes.data || []).filter(r => r !== null);
-
-        // Podaci se koriste direktno iz baze, bez lokalnog cache-a.
-        console.log("🔄 Podaci uspješno povučeni iz Supabase baze.");
-        return true;
-    } catch (err) {
-        console.error("Sustavni problem sa povlačenjem podataka:", err);
-        showAdminError('Greška pri učitavanju podataka iz Supabase baze. Provjerite vezu i dozvole.');
+    if (!productsTable || !usersTable || !reportsTable) {
+        showAdminError('Nije moguće pronaći jednu ili više tabela: products, users, reports. Provjerite nazive tabela u Supabase projektu i Allowed Origins.');
+        console.error('Rezultati resolveTableName:', { productsTable, usersTable, reportsTable });
         return false;
     }
+
+    const [prodRes, userRes, repRes] = await Promise.all([
+        supabaseClient.from(productsTable).select('*'),
+        supabaseClient.from(usersTable).select('*'),
+        supabaseClient.from(reportsTable).select('*')
+    ]);
+
+    if (prodRes.error || userRes.error || repRes.error) {
+        console.error('Greška pri učitavanju admin podataka:', {
+            products: prodRes.error?.message,
+            users: userRes.error?.message,
+            reports: repRes.error?.message
+        });
+        showAdminError('Greška pri učitavanju podataka iz baze. Provjerite dozvole, nazive tabela i Supabase anon key.');
+        return false;
+    }
+
+    products = (prodRes.data || []).filter(p => p !== null && p !== undefined);
+    users = (userRes.data || []).filter(u => u !== null && u !== undefined);
+    reports = (repRes.data || []).filter(r => r !== null && r !== undefined);
+
+    console.log('✅ Admin: uspješno učitani podaci iz Supabase baze.', { products: products.length, users: users.length, reports: reports.length });
+    return true;
+}
+
+// Pokušaj dohvatiti barem `users` tabelu ako glavna sinhronizacija ne uspije
+async function fetchUsersFallback() {
+    if (!supabaseClient) return false;
+    const tried = [];
+    const aliases = DB_TABLE_ALIASES['users'] || ['users'];
+    for (const alias of aliases) {
+        const candidate = alias.replace(/^public\./i, '');
+        tried.push(candidate);
+        try {
+            const res = await supabaseClient.from(candidate).select('*').limit(100);
+            if (!res.error && Array.isArray(res.data)) {
+                users = (res.data || []).filter(u => u !== null);
+                console.log(`✅ Fallback: dohvaćena 'users' tabela kao '${candidate}', korisnika: ${users.length}`);
+                return true;
+            }
+            console.warn(`Fallback: pokušaj '${candidate}' vratio grešku:`, res.error && (res.error.message || res.error));
+        } catch (e) {
+            console.warn(`Fallback exception za '${candidate}':`, e && (e.message || e));
+        }
+    }
+    console.error('Fallback nije uspio. Pokušani nazivi:', tried.join(', '));
+    return false;
 }
 
 function showLogin() {
@@ -316,7 +359,15 @@ window.addEventListener('load', async () => {
     console.log('⚙️ Pokretanje Admin Panela...');
     const dataLoaded = await fetchAllData();
     if (!dataLoaded) {
-        console.warn('Podaci iz baze nisu učitani. Admin panel radi u offline modu sa lokalnim podacima.');
+        console.warn('Podaci iz baze nisu učitani. Pokušavam dohvat korisnika kao fallback...');
+        const usersFb = await fetchUsersFallback();
+        if (usersFb) {
+            console.log('Fallback dohvat korisnika uspio — možete se prijaviti preko podataka iz baze.');
+            showAdminError('Uspješan fallback: dohvaćeni su korisnici iz baze. Neke funkcije mogu biti ograničene.');
+        } else {
+            console.warn('Fallback nije uspio; admin panel će raditi samo lokalno s rezervnim pristupom.');
+            showAdminError('Nije moguće dohvatiti podatke iz Supabase baze. Provjerite Allowed Origins i anon key u Supabase projektu.');
+        }
     }
 
     if (isAdminPageActive) {
