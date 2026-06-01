@@ -6,7 +6,7 @@ HardwareHub je web frontend aplikacija i marketplace za prodaju i kupovinu hardv
 U sklopu projekta postoji i administrativni panel za upravljanje korisnicima, uplatama, prijavama i logovima.
 
 ## 2. Članovi tima i doprinos
-> Napomena: Zamijenite sljedeće stavke sa stvarnim imenima i doprinosima vašeg tima.
+
 
 - **Član 1: Nihad Jasarevic**
   - DWS:

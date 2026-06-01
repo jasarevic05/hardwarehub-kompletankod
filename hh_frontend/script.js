@@ -18,11 +18,41 @@ const supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_ANON
 const DB_TABLE_ALIASES = {
     products: ['products', 'product', 'oglasi', 'artikli', 'ads', 'items', 'proizvodi', 'item', 'hardware_products', 'hardware_items', 'public.products', 'public.oglasi', 'public.artikli', 'public.items'],
     users: ['javni_korisnici', 'korisnici', 'users', 'hardware_users', 'public.javni_korisnici', 'public.korisnici', 'public.users'],
-    reports: ['reports', 'prijave', 'support_reports', 'hardware_reports', 'public.reports', 'public.prijave'],
-    chats: ['chats', 'messages', 'poruke', 'public.chats', 'public.messages']
+    reports: ['reports', 'prijave', 'support_reports', 'hardware_reports', 'support_requests', 'support_tickets', 'tickets', 'public.reports', 'public.prijave'],
+    chats: ['chats', 'messages', 'poruke', 'chat_messages', 'private_messages', 'user_chats', 'conversations', 'public.chats', 'public.messages']
 };
 
 const DB_TABLE_CACHE = {};
+const localChatStorageKey = 'hardwarehub_local_chats';
+const localReportStorageKey = 'hardwarehub_local_reports';
+let localChats = [];
+let localReports = [];
+
+function loadLocalChats() {
+    try {
+        const data = JSON.parse(localStorage.getItem(localChatStorageKey) || '[]');
+        return Array.isArray(data) ? data : [];
+    } catch {
+        return [];
+    }
+}
+
+function saveLocalChats() {
+    localStorage.setItem(localChatStorageKey, JSON.stringify(localChats));
+}
+
+function loadLocalReports() {
+    try {
+        const data = JSON.parse(localStorage.getItem(localReportStorageKey) || '[]');
+        return Array.isArray(data) ? data : [];
+    } catch {
+        return [];
+    }
+}
+
+function saveLocalReports() {
+    localStorage.setItem(localReportStorageKey, JSON.stringify(localReports));
+}
 
 if (!supabaseClient) {
     console.error("❌ KRITIČNO: Supabase klijent nije inicijalizovan! Provjerite CDN skriptu.");
@@ -89,14 +119,59 @@ async function safeFetchFromSupabase(tableKey, required = false) {
     }
 }
 
+async function syncLocalChatsToSupabase() {
+    if (!supabaseClient) return;
+    const tableName = await resolveTableName('chats');
+    if (!tableName) return;
+
+    const pendingChats = localChats.filter(chat => chat.localOnly);
+    if (!pendingChats.length) return;
+
+    const { error } = await supabaseClient.from(tableName).insert(pendingChats);
+    if (!error) {
+        localChats = localChats.filter(chat => !chat.localOnly);
+        saveLocalChats();
+        showToast('Lokalne privatne poruke su sinhronizovane sa serverom.', 'success');
+    } else {
+        console.warn('Greška pri sinhronizaciji lokalnih poruka:', error.message);
+    }
+}
+
+async function syncLocalReportsToSupabase() {
+    if (!supabaseClient) return;
+    const tableName = await resolveTableName('reports');
+    if (!tableName) return;
+
+    const pendingReports = localReports.filter(report => report.localOnly);
+    if (!pendingReports.length) return;
+
+    const { error } = await supabaseClient.from(tableName).insert(pendingReports);
+    if (!error) {
+        localReports = localReports.filter(report => !report.localOnly);
+        saveLocalReports();
+        showToast('Lokalne prijave podrške su sinhronizovane sa serverom.', 'success');
+    } else {
+        console.warn('Greška pri sinhronizaciji lokalnih prijava:', error.message);
+    }
+}
+
+async function syncLocalFallbackToSupabase() {
+    await syncLocalChatsToSupabase();
+    await syncLocalReportsToSupabase();
+}
+
 async function loadSupabaseData() {
     try {
         console.log('🔄 Sinhronizacija sa Supabase bazom u toku...');
         
         if (!supabaseClient) {
-            alert('❌ GREŠKA: Supabase baza nije dostupna! Pokrenite projekat preko live servera.');
-            throw new Error('Supabase nedostupan');
+            console.warn('❌ Supabase baza nije dostupna. Učitavam lokalne poruke i prijave.');
         }
+        
+        localChats = loadLocalChats();
+        localReports = loadLocalReports();
+        
+        await syncLocalFallbackToSupabase();
         
         const [productData, userData, reportData, chatData] = await Promise.all([
             safeFetchFromSupabase('products', true),
@@ -107,8 +182,8 @@ async function loadSupabaseData() {
 
         products = productData || [];
         users = userData || [];
-        reports = reportData || [];
-        chats = chatData || [];
+        reports = [...(reportData || []), ...localReports];
+        chats = [...(chatData || []), ...localChats];
 
         if (currentUser) {
             const svjeziProfil = users.find(u => u.username === currentUser.username);
@@ -122,10 +197,14 @@ async function loadSupabaseData() {
             }
         }
 
-        console.log(`✅ Sinhronizacija završena: Učitano ${products.length} oglasa.`);
+        console.log(`✅ Sinhronizacija završena: Učitano ${products.length} oglasa, ${chats.length} poruka i ${reports.length} prijava.`);
         return true;
     } catch (error) {
         console.error('❌ Greška pri učitavanju baze:', error.message);
+        localChats = loadLocalChats();
+        localReports = loadLocalReports();
+        chats = [...localChats];
+        reports = [...localReports];
         return false;
     }
 }
@@ -500,16 +579,28 @@ if(chatForm) {
         const novaPoruka = {
             sender: currentUser.username,
             receiver: activeChatUser,
-            text: tekst
+            text: tekst,
+            created_at: new Date().toISOString()
         };
 
+        let porukaPoslana = false;
         if (supabaseClient) {
             const tableName = await resolveTableName('chats');
-            if (!tableName) {
-                alert('Greška: tabela chata nije pronađena.');
-                return;
+            if (tableName) {
+                const { error } = await supabaseClient.from(tableName).insert([novaPoruka]);
+                if (!error) {
+                    porukaPoslana = true;
+                } else {
+                    console.warn('Greška pri slanju privatne poruke na server:', error.message);
+                }
             }
-            await supabaseClient.from(tableName).insert([novaPoruka]);
+        }
+
+        if (!porukaPoslana) {
+            novaPoruka.localOnly = true;
+            localChats.push(novaPoruka);
+            saveLocalChats();
+            showToast('Privatna poruka je spremljena lokalno jer tabelu chata nije bilo moguće pronaći.', 'warning');
         }
         
         input.value = '';
@@ -929,22 +1020,30 @@ if(reportForm) {
             message: document.getElementById('repMessage').value,
             created_at: new Date().toISOString()
         };
-        if (supabaseClient) {
+        let reportSent = false;
+    if (supabaseClient) {
             const tableName = await resolveTableName('reports');
-            if (!tableName) {
-                alert('Greška: tabela prijava nije pronađena.');
-                return;
-            }
-            const { error } = await supabaseClient.from(tableName).insert([noviReport]);
-            if (error) {
-                alert('Greška pri slanju prijave: ' + error.message);
-                return;
+            if (tableName) {
+                const { error } = await supabaseClient.from(tableName).insert([noviReport]);
+                if (!error) {
+                    reportSent = true;
+                } else {
+                    console.warn('Greška pri slanju prijave na server:', error.message);
+                }
             }
         }
-        await loadSupabaseData();
-        alert("Poslano podršci!"); 
-        reportForm.reset(); 
-        document.getElementById('reportModal').style.display = 'none';
+
+    if (!reportSent) {
+        noviReport.localOnly = true;
+        localReports.push(noviReport);
+        saveLocalReports();
+        showToast('Prijava je spremljena lokalno jer tabela prijava nije dostupna.', 'warning');
+    }
+
+    await loadSupabaseData();
+    alert(reportSent ? "Poslano podršci!" : "Prijava je spremljena lokalno. Ažurirajte bazu kada bude dostupna."); 
+    reportForm.reset(); 
+    document.getElementById('reportModal').style.display = 'none';
     });
 }
 
