@@ -4,7 +4,8 @@ const adminPasswords = {
 };
 const SUPABASE_URL = "https://gvwmkqqhpdklikkbciol.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd2d21rcXFocGRrbGlra2JjaW9sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkxODg2OTEsImV4cCI6MjA5NDc2NDY5MX0.X5URdWNvIez_jiuT4uyhBtTAi9Vcr2SDf9KyKE5YdE0";
-const supabaseClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const createSupabaseClient = window.supabase?.createClient || (typeof supabase !== 'undefined' && supabase?.createClient);
+const supabaseClient = createSupabaseClient ? createSupabaseClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
 if (!supabaseClient) {
     console.error("❌ Admin greška: Supabase klijent nije inicijalizovan! Provjerite CDN skriptu.");
@@ -55,8 +56,9 @@ async function resolveTableName(key) {
 
 async function fetchAllData() {
     if (!supabaseClient) {
-        alert('❌ Supabase klijent nije dostupan. Podaci se ne mogu učitati.');
-        return;
+        console.error('❌ Supabase klijent nije dostupan. Podaci se ne mogu učitati.');
+        showAdminError('Nije moguće povezati se sa Supabase bazom. Admin panel će raditi u offline modu.');
+        return false;
     }
     try {
         const [productsTable, usersTable, reportsTable] = await Promise.all([
@@ -79,14 +81,21 @@ async function fetchAllData() {
         if (userRes.error) console.error("Greška pri učitavanju korisnika:", userRes.error.message);
         if (repRes.error) console.error("Greška pri učitavanju prijava:", repRes.error.message);
 
+        if (prodRes.error || userRes.error || repRes.error) {
+            throw new Error('Greška pri učitavanju neke od tabela iz Supabase baze.');
+        }
+
         products = (prodRes.data || []).filter(p => p !== null);
         users = (userRes.data || []).filter(u => u !== null);
         reports = (repRes.data || []).filter(r => r !== null);
 
         // Podaci se koriste direktno iz baze, bez lokalnog cache-a.
         console.log("🔄 Podaci uspješno povučeni iz Supabase baze.");
+        return true;
     } catch (err) {
         console.error("Sustavni problem sa povlačenjem podataka:", err);
+        showAdminError('Greška pri učitavanju podataka iz Supabase baze. Provjerite vezu i dozvole.');
+        return false;
     }
 }
 
@@ -220,6 +229,19 @@ async function obrisiKorisnika(username) {
     showDashboard();
 }
 
+function showAdminError(message) {
+    const loginCard = document.querySelector('.admin-card');
+    if (!loginCard) return;
+    let errorBox = document.getElementById('adminErrorBox');
+    if (!errorBox) {
+        errorBox = document.createElement('div');
+        errorBox.id = 'adminErrorBox';
+        errorBox.style.cssText = 'background:#821717; color:#ffe4e6; padding:12px; border-radius:6px; margin-bottom:14px; font-size:0.9rem; line-height:1.4;';
+        loginCard.insertAdjacentElement('afterbegin', errorBox);
+    }
+    errorBox.textContent = message;
+}
+
 function renderReports() {
     const container = document.getElementById('adminReportsContainer');
     if (!container) return;
@@ -292,7 +314,10 @@ function renderLogs() {
 
 window.addEventListener('load', async () => {
     console.log('⚙️ Pokretanje Admin Panela...');
-    await fetchAllData();
+    const dataLoaded = await fetchAllData();
+    if (!dataLoaded) {
+        console.warn('Podaci iz baze nisu učitani. Admin panel radi u offline modu sa lokalnim podacima.');
+    }
 
     if (isAdminPageActive) {
         const savedUsername = sessionStorage.getItem(adminUsernameKey);
