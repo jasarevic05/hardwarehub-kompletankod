@@ -322,14 +322,14 @@ window.addEventListener('load', async () => {
             const username = usernameInput.value.trim();
             const password = passwordInput.value.trim();
             
-            if (!users || users.length === 0) {
-                alert('Podaci o korisnicima se još učitavaju sa servera. Molimo sačekajte sekundu.');
-                return;
-            }
-
             const adminUser = users.find(u => u && u.username === username && ['admin', 'owner'].includes(u.role));
             const fallbackPasswordMatch = adminPasswords[username] === password;
             const fallbackRole = username === 'owner' ? 'owner' : 'admin';
+
+            if (!adminUser && !fallbackPasswordMatch) {
+                alert('Pogrešno korisničko ime ili lozinka za admin panel.');
+                return;
+            }
 
             if (adminUser) {
                 if (adminUser.password !== password) {
